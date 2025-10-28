@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>>DotMatrixJS</title>
+</head>
+<style type="text/css">
+</style>
+<pre class="output"></pre>
+<body style="overflow: hidden; position: fixed;" onload="init()">
+  
+  <script type="text/javascript" src="./js/main.js"></script>
+  <script type="text/javascript" src="./js/util.js"></script>
+  <script type="text/javascript" src="./js/draw.js"></script>
+  <script type="text/javascript" src="./js/DMDclasses.js"></script>
+  <script type="text/javascript" src="./js/dotMatrixFont.js"></script>
+  <script type="text/javascript" src="./js/control.js"></script>
+  
+  <div id="canvasDiv" style="cursor: none; padding: 0;margin: auto;display: block;width: 800px;">
+    <canvas tabindex='1' id="canvas" width="1" height="1" style="border:2px solid #000000;">
+      Your browser does not support the HTML5 canvas tag.
+    </canvas>
+    <canvas tabindex='2' id="buffer" width="1" height="1" style="border:2px solid #000000; display: none;">
+      Your browser does not support the HTML5 canvas tag.
+    </canvas>
+
+    <label for="import">Import animation (WARNING: Replaces current animation):</label>
+    <input type="file" id="import" name="import" accept="json"/>
+    <br>
+    <input type="button" id="export" name="export" value="Export current animation"/>
+
+  
+  </div>
+
+  <script>
+    const c = document.getElementById("canvas");
+    const ctx = c.getContext("2d");
+    const b = document.getElementById("buffer");
+    const bctx = b.getContext("2d");
+  </script>
+</body>
+</html>
