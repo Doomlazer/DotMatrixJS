@@ -18,7 +18,7 @@ function init() {
     fileOutput.addEventListener('click', (event) => {
         if (display.animationQueue[display.selectedAnimation]) {
             const temp = structuredClone(display.animationQueue[display.selectedAnimation]);
-            compressFrames(temp);
+            //compressFrames(temp);
             let saveAs = "Animation-";
             var stringified = JSON.stringify(temp, null, 2); 
             var blob = new Blob([stringified], {type: "application/json"});
@@ -45,7 +45,10 @@ function init() {
                     const jsonString = e.target.result;
                     const jsonObject = JSON.parse(jsonString);
                     display.animationQueue[display.selectedAnimation] = jsonObject;
-                    expandFrames(display.animationQueue[display.selectedAnimation]);
+                    display.width = jsonObject.width;
+                    display.height = jsonObject.height;
+                    display.clearPixelData(display.animationQueue[display.selectedAnimation]);
+                    //expandFrames(display.animationQueue[display.selectedAnimation]);
                 } catch (error) {
                     alert('Error parsing file');
                     console.error("Error parsing file", error);
@@ -61,8 +64,8 @@ function init() {
     doResize();
     display = new DMDisplay();
     // background
-        bctx.fillStyle = '#000000';
-        bctx.fillRect(display.x, display.y, display.width * display.pixelSize, display.height * display.pixelSize);
+        //bctx.fillStyle = '#000000';
+        //bctx.fillRect(display.x, display.y, display.width * display.pixelSize, display.height * display.pixelSize);
     // display.printString("aAbBcCdDeEfFgGhHiIjJkKlLmMnNoO", 0, 0, '#FFB000')
     // display.printString("mMnNoOpPqQrRsStTuU", 0, 10, '#FFB000')
     // display.printString("tTuUvVwWxXyYzZaAbB", 0, 20, '#FFB000')

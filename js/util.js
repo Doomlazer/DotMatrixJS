@@ -84,10 +84,27 @@ function expandFrames(ani) {
             let count = p.slice(7);
             for (let j = 0; j < count; j ++) {
                 temp.push(colorIndex);
-                console.log("pushing", colorIndex);
+                //console.log("pushing", colorIndex);
             }
         });
         ani.frames[ind] = [...temp];            
-        console.log("frame exported:", ani.frames[ind]);
+        //console.log("frame exported:", ani.frames[ind]);
     });
+}
+
+function compressFrame(ani, fNum) {
+
+        for (let i = 0; i < frame.length; i ++) {
+            let count = 1;
+            while (frame[i] === frame[i+count]) {
+                // count consecutive 
+                count ++;
+            }
+            console.log(frame[i] + count); // delete
+            temp.push(frame[i] + count);
+            if (count > 1) {
+                i += count-1
+            }
+        }
+        ani.frames[ind] = [...temp];          
 }

@@ -11,13 +11,13 @@ function doMouseMove(e) {
 function doMouseDown(e) {
     mouseEvent = e;
     mouseDown = true;
-    console.log("mouseDown");
+    //console.log("mouseDown");
     
 }
 
 function doMouseUp(e) {
     mouseDown = false;
-    console.log("mouseUp");
+    //console.log("mouseUp");
 }
  
 function doClick(e) {
@@ -45,17 +45,26 @@ function doKeyDown(e) {
 
         // new frame
         if (e.key == 'n') {
-            display.clearPixelData();
+            // compress the current frame 
             let a = display.animationQueue[display.selectedAnimation];
+            let compressedFrame = display.compressFrame(display.pixelData);
+            a.frames[a.currentFrame] = compressedFrame;
+
+            // add the new frame
+            display.clearPixelData(a);
             a.frames.push(display.pixelData);
             a.currentFrame = a.frames.length - 1;
         }
 
         // copy current frame to new frame
         if (e.key == 'c') {
-            display.clearPixelData();
+            // compress the frame
             let a = display.animationQueue[display.selectedAnimation];
-            a.frames.push([...a.frames[a.currentFrame]]);
+            let compressedFrame = display.compressFrame(display.pixelData);
+            a.frames[a.currentFrame] = compressedFrame;
+
+            // then copy it to a new frame
+            a.frames.push(display.pixelData);
             a.currentFrame = a.frames.length - 1;
         }
 
@@ -83,7 +92,9 @@ function doKeyDown(e) {
                     a.frames.splice(a.currentFrame, 1);
                     a.currentFrame --;
                 } else {
-                    alert("Sorry, cannot remove first frame");
+                    display.clearPixelData(a);
+                    a.frames.push(display.pixelData);
+                    //alert("Sorry, cannot remove first frame");
                 }
             }
         }
@@ -93,6 +104,9 @@ function doKeyDown(e) {
             let a = display.animationQueue[display.selectedAnimation];
             if (a.currentFrame > 0) {
                 a.currentFrame --;
+                display.clearPixelData(a);
+                let expandedFrame = display.expandFrame(a.frames[a.currentFrame]);
+                display.pixelData = expandedFrame;
             }
         }
 
@@ -101,6 +115,9 @@ function doKeyDown(e) {
             let a = display.animationQueue[display.selectedAnimation];
             if (a.currentFrame < a.frames.length - 1) {
                 a.currentFrame ++;
+                display.clearPixelData(a);
+                let expandedFrame = display.expandFrame(a.frames[a.currentFrame]);
+                display.pixelData = expandedFrame;
             }
         }
     }

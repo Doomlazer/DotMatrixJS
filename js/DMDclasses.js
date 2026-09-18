@@ -1,10 +1,13 @@
 class DMAnimiation {
-    constructor(str, x, y, type = 'scroll', color = '#FFB000', speed = 5, dir = 0) {
+    constructor(str, x, y, type = 'scroll', color = '#FFB000', bgColor = '#000000', speed = 5, dir = 0) {
         this.str = str;
         this.x = x;
         this.y = y;
+        this.width = 128;
+        this.height = 32;
         this.type = type;
         this.color = color;
+        this.bgColor = bgColor;
         this.speed = speed;
         this.offset = 0;
         this.aniDelay = speed;
@@ -23,14 +26,14 @@ class DMAnimiation {
 
 class DMDisplay {
     constructor() {
-        this.width = 128;
+        this.width = 64;
         this.height = 32;
         this.pixelSize = 8; // must be at least 2
         this.x = 10;
         this.y = 10;
         this.monochrome = false;
         this.roundDots = true;
-        this.pixelData = [];
+        this.pixelData = -1;
         this.prevPixelData = [];
         this.animationQueue = [];
         this.editMode = true;
@@ -64,22 +67,64 @@ class DMDisplay {
             '#b2b2b2', '#bcbcbc', '#c6c6c6', '#d0d0d0', '#dadada', '#e4e4e4', '#eeeeee', '#FFFFFF'];
 
         // init pixelData as zeros        
-        this.clearPixelData();
+        this.clearPixelData(-1);
         this.initPrevPixelData();
     }
 
     initPrevPixelData() {
         for (let i = 0; i < this.width * this.height; i++) {
-            this.prevPixelData.push('#000000')
+            this.prevPixelData.push(this.bgColor)
         }
     }
 
-    clearPixelData() {
+    clearPixelData(ani) {
+        let col;
+        // no animation loaded if -1
+        if (ani == -1) {
+            col = "#000000";
+        } else {
+            col = ani.bgColor;
+        }
         // fill display with black
+        bctx.fillStyle = ani.bgColor;
+        bctx.fillRect(this.x, this.y, this.width * this.pixelSize, this.height * this.pixelSize);
+        // zero out pixel data
         this.pixelData = [];
         for (let i = 0; i < this.width * this.height; i++) {
-            this.pixelData.push('#000000')
+            this.pixelData.push(ani.bgColor);
         }
+    }
+    
+    compressFrame(frame) {
+        let temp = [];
+        console.log("frame ", frame)
+        for (let i = 0; i < frame.length; i ++) {
+            let count = 1;
+            while (frame[i] === frame[i+count]) {
+                // count consecutive 
+                count ++;
+            }
+            console.log("count ", count, ", frame[i] + count ", frame[i] + count, `, frame[${i}] `, frame[i]); // delete
+            temp.push(frame[i] + count);
+            if (count > 1) {
+                i += count - 1;
+            }
+        }
+        return temp;          
+    }
+
+    expandFrame(frame) {
+        let temp = [];
+        frame.forEach(p => {
+            let colorIndex = p.slice(0,7);
+            let count = p.slice(7);
+            for (let j = 0; j < count; j ++) {
+                temp.push(colorIndex);
+                //console.log("pushing", colorIndex);
+            }
+        });
+        //ani.frame = [...temp];
+        return temp;         
     }
 
     setPixel(x, y, color) {
@@ -126,7 +171,6 @@ class DMDisplay {
         }
         
         // update animation queue
-        //this.clearPixelData();
         this.animationQueue.forEach(ani => {
             if (ani.type == 'scroll') {
                 if (ani.aniDelay > 0) {
@@ -165,13 +209,15 @@ class DMDisplay {
                                 if (ani.repeats) {
                                     ani.currentFrame = 0;
                                 } else {
+                                    // ??!?! check where the queue is populated
                                     this.animationQueue.pop(ani);
                                 }
                             }
                         }
+                        this.pixelData = this.expandFrame(ani.frames[ani.currentFrame]);
                     }
                 }
-                this.pixelData = ani.frames[ani.currentFrame];
+                //this.pixelData = ani.frames[ani.currentFrame]
             }
         })
         
@@ -216,22 +262,22 @@ class DMDisplay {
         if (this.editMode == true) {
             if (this.selectedAnimation > -1) {
                 // draw the palette colors
-                let selAni = this.animationQueue[this.selectedAnimation];
-                if (selAni.type == 'animation') {
-                    this.drawPalette(selAni);
+                let a = this.animationQueue[this.selectedAnimation];
+                if (a.type == 'animation') {
+                    this.drawPalette(a);
                     ctx.font = "20px Arial";
                     ctx.fillStyle = '#030000ff';
-                    ctx.fillText("Frame " + (selAni.currentFrame + 1) + " of " + selAni.frames.length, this.x + (selAni.paletteSize * selAni.paletteWidth) + 20, this.height * this.pixelSize + 30 + this.y);
-                    ctx.fillText("New Frame: press 'n'", this.x + (selAni.paletteSize * selAni.paletteWidth) + 20, this.height * this.pixelSize + 60 + this.y);
-                    ctx.fillText("Clone current Frame: press 'c'", this.x + (selAni.paletteSize * selAni.paletteWidth) + 20, this.height * this.pixelSize + 80 + this.y);
-                    ctx.fillText("Delete current Frame: press 'd'", this.x + (selAni.paletteSize * selAni.paletteWidth) + 20, this.height * this.pixelSize + 100 + this.y);
-                    ctx.fillText("Prev Frame: press 'o'", this.x + (selAni.paletteSize * selAni.paletteWidth) + 20, this.height * this.pixelSize + 120 + this.y);
-                    ctx.fillText("Next Frame: press 'p'", this.x + (selAni.paletteSize * selAni.paletteWidth) + 20, this.height * this.pixelSize + 140 + this.y);
-                    //ctx.fillText("Shift click to erase dot/pixel", this.x + (selAni.paletteSize * selAni.paletteWidth) + 20, this.height * this.pixelSize + 160 + this.y);
-                    ctx.fillText("Toggle edit/play mode: press 'e'", this.x + (selAni.paletteSize * selAni.paletteWidth) + 20, this.height * this.pixelSize + 180 + this.y);
-                    //ctx.fillText("Toggle dot/pixel: press 't'", this.x + (selAni.paletteSize * selAni.paletteWidth) + 20, this.height * this.pixelSize + 190 + this.y);
-                    ctx.fillText("Shift left/right: press 't' & 'y'", this.x + (selAni.paletteSize * selAni.paletteWidth) + 20, this.height * this.pixelSize + 220 + this.y);
-                    ctx.fillText("Shift up/down: press 'u' & 'i'", this.x + (selAni.paletteSize * selAni.paletteWidth) + 20, this.height * this.pixelSize + 240 + this.y);
+                    ctx.fillText("Frame " + (a.currentFrame + 1) + " of " + a.frames.length, this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 30 + this.y);
+                    ctx.fillText("New Frame: press 'n'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 60 + this.y);
+                    ctx.fillText("Clone current Frame: press 'c'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 80 + this.y);
+                    ctx.fillText("Delete current Frame: press 'd'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 100 + this.y);
+                    ctx.fillText("Prev Frame: press 'o'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 120 + this.y);
+                    ctx.fillText("Next Frame: press 'p'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 140 + this.y);
+                    //ctx.fillText("Shift click to erase dot/pixel", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 160 + this.y);
+                    ctx.fillText("Toggle edit/play mode: press 'e'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 180 + this.y);
+                    //ctx.fillText("Toggle dot/pixel: press 't'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 190 + this.y);
+                    ctx.fillText("Shift left/right: press 't' & 'y'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 220 + this.y);
+                    ctx.fillText("Shift up/down: press 'u' & 'i'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 240 + this.y);
                 }
             } else {
                 // console.log("printing button");
@@ -273,19 +319,21 @@ class DMDisplay {
 
     checkClick(e) {
         if (this.editMode && this.selectedAnimation > -1) {
+            
             // detect if click within drawn palette
-            let selAni = this.animationQueue[this.selectedAnimation];
-            if (mouseX > this.x && mouseX < this.x + (selAni.paletteWidth * selAni.paletteSize)) {
+            let a = this.animationQueue[this.selectedAnimation];
+            if (mouseX > this.x && mouseX < this.x + (a.paletteWidth * a.paletteSize)) {
                 if (mouseY > this.height * this.pixelSize + 10 + this.y && 
-                    mouseY < (this.height * this.pixelSize + 10 + this.y) + ((Math.floor(selAni.palette.length/selAni.paletteWidth) + 1) * selAni.paletteSize)) {
+                    mouseY < (this.height * this.pixelSize + 10 + this.y) + ((Math.floor(a.palette.length/a.paletteWidth) + 1) * a.paletteSize)) {
                     let oX = mouseX - this.x
                     let oY = mouseY - (this.height * this.pixelSize + 10 + this.y);
-                    let newX = Math.floor(oX / selAni.paletteSize);
-                    let newY = Math.floor(oY / selAni.paletteSize) * selAni.paletteWidth;
+                    let newX = Math.floor(oX / a.paletteSize);
+                    let newY = Math.floor(oY / a.paletteSize) * a.paletteWidth;
                     this.selectedColor = newY + newX;
                     //console.log("newX: " + newX + ", newY: " + newY);
                 }
             }
+            
             // detect click on pixel
             //ctx.fillRect(this.x, this.y, this.width * this.pixelSize, this.height * this.pixelSize);
             if (mouseX >= this.x && mouseX <= (this.width+ 1) * this.pixelSize) {
@@ -297,24 +345,29 @@ class DMDisplay {
                     //console.log("newX: " + newX + ", newY: " + newY);
                     if (e.shiftKey) {
                         // do black instead of selected color on shift click
-                        selAni.frames[selAni.currentFrame][newY + newX] = '#000000';
+                        //a.frames[a.currentFrame][newY + newX] = '#000000';
+                        this.pixelData[newY + newX] = a.bgColor;
                     } else {
-                        selAni.frames[selAni.currentFrame][newY + newX] = selAni.palette[this.selectedColor];
+                        //a.frames[a.currentFrame][newY + newX] = a.palette[this.selectedColor];
+                        this.pixelData[newY + newX] = a.palette[this.selectedColor];
                     } 
                 }
             }
         } else if (this.editMode) {
+            //constructor(str, x, y, type = 'scroll', color = '#FFB000', bgColor = '#000000', speed = 5, dir = 0)
             this.animationQueue.push(new DMAnimiation('', 0, 0, 'animation'));
             this.selectedAnimation = this.animationQueue.length - 1;
-            //console.log(this.animationQueue);
+            // be sure frame is initalized
+            this.clearPixelData(this.animationQueue[this.selectedAnimation]);
+            //console.log(this.pixelData);
             
             this.animationQueue[this.selectedAnimation].currentFrame = 0;
         }
     }
 
     shiftFrameRows(dir) {
-        let selAni = this.animationQueue[this.selectedAnimation];
-        let frame = selAni.frames[selAni.currentFrame];
+        let a = this.animationQueue[this.selectedAnimation];
+        let frame = a.frames[a.currentFrame];
         for (let i = 0; i < this.height; i++) {
             if (dir == 0) {
                 let temp = frame.splice(i * this.width, 1);
@@ -327,8 +380,8 @@ class DMDisplay {
     }
 
     shiftFrameColumns(dir) {
-        let selAni = this.animationQueue[this.selectedAnimation];
-        let frame = selAni.frames[selAni.currentFrame];
+        let a = this.animationQueue[this.selectedAnimation];
+        let frame = a.frames[a.currentFrame];
         if (dir == 0) {
             // move up 
             let temp = frame.splice(0, this.width);
