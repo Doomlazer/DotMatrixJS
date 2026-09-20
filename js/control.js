@@ -92,6 +92,7 @@ function doKeyDown(e) {
                     a.frames.splice(a.currentFrame, 1);
                     a.currentFrame --;
                 } else {
+                    a.frames.splice(a.currentFrame, 1);
                     display.clearPixelData(a);
                     a.frames.push(display.pixelData);
                     //alert("Sorry, cannot remove first frame");
@@ -103,8 +104,13 @@ function doKeyDown(e) {
         if (e.key == 'o') {
             let a = display.animationQueue[display.selectedAnimation];
             if (a.currentFrame > 0) {
+                // compress the current frame 
+                let a = display.animationQueue[display.selectedAnimation];
+                let compressedFrame = display.compressFrame(display.pixelData);
+                a.frames[a.currentFrame] = compressedFrame;
+
                 a.currentFrame --;
-                display.clearPixelData(a);
+                display.prevPixelData = [];
                 let expandedFrame = display.expandFrame(a.frames[a.currentFrame]);
                 display.pixelData = expandedFrame;
             }
@@ -114,8 +120,13 @@ function doKeyDown(e) {
         if (e.key == 'p') {
             let a = display.animationQueue[display.selectedAnimation];
             if (a.currentFrame < a.frames.length - 1) {
+                // compress the current frame 
+                let a = display.animationQueue[display.selectedAnimation];
+                let compressedFrame = display.compressFrame(display.pixelData);
+                a.frames[a.currentFrame] = compressedFrame;
+
                 a.currentFrame ++;
-                display.clearPixelData(a);
+                display.prevPixelData = [];
                 let expandedFrame = display.expandFrame(a.frames[a.currentFrame]);
                 display.pixelData = expandedFrame;
             }

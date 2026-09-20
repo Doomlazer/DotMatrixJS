@@ -7,14 +7,6 @@
 </style>
 <pre class="output"></pre>
 <body style="overflow: hidden; position: fixed;" onload="init()">
-  
-  <script type="text/javascript" src="./js/main.js"></script>
-  <script type="text/javascript" src="./js/util.js"></script>
-  <script type="text/javascript" src="./js/draw.js"></script>
-  <script type="text/javascript" src="./js/DMDclasses.js"></script>
-  <script type="text/javascript" src="./js/dotMatrixFont.js"></script>
-  <script type="text/javascript" src="./js/control.js"></script>
-  
   <div id="canvasDiv" style="cursor: none; padding: 0;margin: auto;display: block;width: 800px;">
     <canvas tabindex='1' id="canvas" width="1" height="1" style="border:2px solid #000000;">
       Your browser does not support the HTML5 canvas tag.
@@ -23,11 +15,20 @@
       Your browser does not support the HTML5 canvas tag.
     </canvas>
 
+    <input type="button" id="export" name="export" value="Export current animation"/>
     <label for="import">Import animation (WARNING: Replaces current animation):</label>
     <input type="file" id="import" name="import" accept="json"/>
     <br>
-    <input type="button" id="export" name="export" value="Export current animation"/>
+    <label for="convertMP4">convert MP4 video (WARNING: Replaces current animation):</label>
+    <input type="file" id="convertMP4" name="convertMP4" accept="video"/>
 
+    <script type="text/javascript" src="./js/main.js"></script>
+    <script type="text/javascript" src="./js/util.js"></script>
+    <script type="text/javascript" src="./js/draw.js"></script>
+    <script type="text/javascript" src="./js/DMDclasses.js"></script>
+    <script type="text/javascript" src="./js/dotMatrixFont.js"></script>
+    <script type="text/javascript" src="./js/control.js"></script>
+    <script type="text/javascript" src="./js/convertMP4.js"></script>
   
   </div>
 
