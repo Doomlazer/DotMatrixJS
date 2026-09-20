@@ -17,11 +17,6 @@
  *   - No dithering
  *   - Row-major run-length encoding
  *
- * Amber:
- *   0 = #000000
- *   1 = #443000
- *   2 = #AA7000
- *   3 = #FFB000
  *
  * IMPORTANT:
  *   There is only ONE amber quantizer.
@@ -272,7 +267,7 @@ function encodeFrameFast(
 
     const output = [];
 
-    let previousColor = null;
+    let previousIndex = null;
     let count = 0;
 
     for (
@@ -286,11 +281,14 @@ function encodeFrameFast(
         const b = data[i + 2];
         const a = data[i + 3];
 
-        let color;
+        let paletteIndex;
 
         if (a < 128) {
 
-            color = "#000000";
+            /*
+             * Transparent pixels use palette index 0.
+             */
+            paletteIndex = 0;
 
         } else {
 
@@ -302,7 +300,7 @@ function encodeFrameFast(
                     a
                 ) >>> 0;
 
-            let paletteIndex =
+            paletteIndex =
                 colorCache.get(cacheKey);
 
             if (
@@ -310,8 +308,8 @@ function encodeFrameFast(
             ) {
 
                 const lookupIndex =
-                    (r >> 3 << 10) |
-                    (g >> 3 << 5) |
+                    ((r >> 3) << 10) |
+                    ((g >> 3) << 5) |
                     (b >> 3);
 
                 paletteIndex =
@@ -324,13 +322,10 @@ function encodeFrameFast(
                     paletteIndex
                 );
             }
-
-            color =
-                palette[paletteIndex];
         }
 
         if (
-            color === previousColor
+            paletteIndex === previousIndex
         ) {
 
             count++;
@@ -338,26 +333,30 @@ function encodeFrameFast(
         } else {
 
             if (
-                previousColor !== null
+                previousIndex !== null
             ) {
 
-                output.push(
-                    previousColor + count
-                );
+                output.push([
+                    previousIndex,
+                    count
+                ]);
             }
 
-            previousColor = color;
+            previousIndex =
+                paletteIndex;
+
             count = 1;
         }
     }
 
     if (
-        previousColor !== null
+        previousIndex !== null
     ) {
 
-        output.push(
-            previousColor + count
-        );
+        output.push([
+            previousIndex,
+            count
+        ]);
     }
 
     return output;
@@ -564,11 +563,23 @@ function getAmberLevelBrightness(
 function appendAmberPixel(
     output,
     state,
-    color
+    color,
+    palette
 ) {
 
+    const paletteIndex =
+        palette.indexOf(
+            normalizeHex(color)
+        );
+
+    if (paletteIndex === -1) {
+        throw new Error(
+            `Color ${color} was not found in display.defaultPalette`
+        );
+    }
+
     if (
-        color === state.previousColor
+        paletteIndex === state.previousIndex
     ) {
 
         state.count++;
@@ -576,16 +587,18 @@ function appendAmberPixel(
     } else {
 
         if (
-            state.previousColor !== null
+            state.previousIndex !== null
         ) {
 
-            output.push(
-                state.previousColor +
+            output.push([
+                state.previousIndex,
                 state.count
-            );
+            ]);
         }
 
-        state.previousColor = color;
+        state.previousIndex =
+            paletteIndex;
+
         state.count = 1;
     }
 }
@@ -597,13 +610,13 @@ function finishAmberRLE(
 ) {
 
     if (
-        state.previousColor !== null
+        state.previousIndex !== null
     ) {
 
-        output.push(
-            state.previousColor +
+        output.push([
+            state.previousIndex,
             state.count
-        );
+        ]);
     }
 }
 
@@ -615,7 +628,8 @@ function finishAmberRLE(
 
 function encodeAmberFrameThresholded(
     data,
-    amber
+    amber,
+    palette
 ) {
 
     if (
@@ -632,7 +646,7 @@ function encodeAmberFrameThresholded(
     const output = [];
 
     const state = {
-        previousColor: null,
+        previousIndex: null,
         count: 0
     };
 
@@ -671,7 +685,8 @@ function encodeAmberFrameThresholded(
         appendAmberPixel(
             output,
             state,
-            colors[level]
+            colors[level],
+            palette
         );
     }
 
@@ -713,7 +728,8 @@ function encodeAmberFrameOrdered(
     data,
     width,
     height,
-    amber
+    amber,
+    palette
 ) {
 
     if (
@@ -822,7 +838,8 @@ function encodeAmberFrameOrdered(
             appendAmberPixel(
                 output,
                 state,
-                colors[level]
+                colors[level],
+                palette
             );
         }
     }
@@ -845,7 +862,8 @@ function encodeAmberFrameDithered(
     data,
     width,
     height,
-    amber
+    amber,
+    palette
 ) {
 
     if (
@@ -1006,7 +1024,8 @@ function encodeAmberFrameDithered(
             appendAmberPixel(
                 output,
                 state,
-                colors[level]
+                colors[level],
+                palette
             );
         }
     }
@@ -1029,7 +1048,8 @@ function encodeAmberFrame(
     data,
     width,
     height,
-    amber
+    amber,
+    palette
 ) {
 
     if (!amber) {
@@ -1067,7 +1087,8 @@ function encodeAmberFrame(
 
             return encodeAmberFrameThresholded(
                 data,
-                amber
+                amber,
+                palette
             );
 
         case "ordered":
@@ -1076,7 +1097,8 @@ function encodeAmberFrame(
                 data,
                 width,
                 height,
-                amber
+                amber,
+                palette
             );
 
         case "floyd-steinberg":
@@ -1085,7 +1107,8 @@ function encodeAmberFrame(
                 data,
                 width,
                 height,
-                amber
+                amber,
+                palette
             );
 
         default:
@@ -1405,59 +1428,49 @@ async function videoToAnimation(
      * --------------------------------------------------------
      */
 
-    const palette =
+let palette;
+
+let paletteData = null;
+let amberQuantizer = null;
+
+if (colorMode === "palette") {
+
+    palette =
         display.defaultPalette.map(
             normalizeHex
         );
 
-    let paletteData = null;
-    let amberQuantizer = null;
-
-
-    if (
-        colorMode === "palette"
-    ) {
-
-        paletteData =
-            createPaletteLookup(
-                palette
-            );
-        //console.log("paletteData ",paletteData)
-
-    } else if (
-        colorMode === "amber5"
-    ) {
-
-        /*
-         * THIS is the only place the amber quantizer is
-         * created.
-         *
-         * Notice the property name:
-         *
-         *     amberThresholds
-         *
-         * NOT:
-         *
-         *     thresholds
-         */
-        amberQuantizer =
-            createAmberQuantizer({
-                colors:
-                    amberColors,
-
-                amberThresholds:
-                    amberThresholds,
-
-                dithering:
-                    dithering
-            });
-
-    } else {
-
-        throw new Error(
-            `Unknown colorMode: ${colorMode}`
+    paletteData =
+        createPaletteLookup(
+            palette
         );
-    }
+
+} else if (colorMode === "amber5") {
+
+    palette =
+        amberColors.map(
+            normalizeHex
+        );
+        //console.log("palette ",palette)
+
+    amberQuantizer =
+        createAmberQuantizer({
+            colors:
+                palette,
+
+            amberThresholds:
+                amberThresholds,
+
+            dithering:
+                dithering
+        });
+
+} else {
+
+    throw new Error(
+        `Unknown colorMode: ${colorMode}`
+    );
+}
 
 
     /* --------------------------------------------------------
@@ -1727,7 +1740,8 @@ async function videoToAnimation(
                         image.data,
                         width,
                         height,
-                        amberQuantizer
+                        amberQuantizer,
+                        palette
                     );
 
             } else {

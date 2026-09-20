@@ -29,7 +29,7 @@ function init() {
                 {
                     maxWidth: 64,
                     fps: 8,
-                    maxFrames: 300,
+                    maxFrames: 100,
                     //colorMode: "amber5",
                     colorMode: "palette",
                     bgColor: "#000000",

@@ -117,8 +117,11 @@ class DMDisplay {
                 // count consecutive 
                 count ++;
             }
-            //console.log("count ", count, ", frame[i] + count ", frame[i] + count, `, frame[${i}] `, frame[i]); // delete
-            temp.push(frame[i] + count);
+            //console.log("count ", count, ", frame[i] + count ", frame[i] + count, `, frame[${i}] `, frame[i]); // delete;
+            temp.push([
+                display.defaultPalette.indexOf(frame[i]), 
+                count
+            ]);
             if (count > 1) {
                 i += count - 1;
             }
@@ -126,18 +129,27 @@ class DMDisplay {
         return temp;          
     }
 
-    expandFrame(frame) {
-        let temp = [];
-        frame.forEach(p => {
-            let colorIndex = p.slice(0,7);
-            let count = p.slice(7);
-            for (let j = 0; j < count; j ++) {
-                temp.push(colorIndex);
-            }
-        });
-        //ani.frame = [...temp];
-        return temp;         
-    }
+    expandFrame(frame, animation) {
+    let temp = [];
+
+    const palette =
+        animation?.palette ||
+        display.defaultPalette;
+
+    frame.forEach(p => {
+        const colorIndex = p[0];
+        const count = p[1];
+
+        for (let j = 0; j < count; j++) {
+            temp.push(
+                palette[colorIndex]
+            );
+        }
+    });
+
+    console.log(palette, "palette", temp)
+    return temp;
+}
 
     setPixel(x, y, color) {
         // x and y origin is 0, not 1
@@ -227,7 +239,7 @@ class DMDisplay {
                                 }
                             }
                         }
-                        this.pixelData = this.expandFrame(ani.frames[ani.currentFrame]);
+                        this.pixelData = this.expandFrame(ani.frames[ani.currentFrame], ani);
                     }
                 }
                 //this.pixelData = ani.frames[ani.currentFrame]

@@ -111,7 +111,7 @@ function doKeyDown(e) {
 
                 a.currentFrame --;
                 display.prevPixelData = [];
-                let expandedFrame = display.expandFrame(a.frames[a.currentFrame]);
+                let expandedFrame = display.expandFrame(a.frames[a.currentFrame], a);
                 display.pixelData = expandedFrame;
             }
         }
@@ -127,7 +127,7 @@ function doKeyDown(e) {
 
                 a.currentFrame ++;
                 display.prevPixelData = [];
-                let expandedFrame = display.expandFrame(a.frames[a.currentFrame]);
+                let expandedFrame = display.expandFrame(a.frames[a.currentFrame], a);
                 display.pixelData = expandedFrame;
             }
         }
