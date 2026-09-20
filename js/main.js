@@ -13,12 +13,70 @@ function init() {
     //window.addEventListener("keyup", kUp);
     window.addEventListener('resize', doResize);
     
+    // convert mp4
+    const videoInput = document.getElementById("convertMP4");
+    videoInput.addEventListener("change", async (event) => {
+        const file = event.target.files[0];
+
+        if (!file) {
+            return;
+        }
+
+        try {
+            const animation = await videoToAnimation(
+                file,
+                display,
+                {
+                    maxWidth: 64,
+                    fps: 8,
+                    maxFrames: 300,
+                    //colorMode: "amber5",
+                    colorMode: "palette",
+                    bgColor: "#000000",
+
+                    amberColors: [
+                        "#000000", // level 0: black
+                        "#443000", // level 1: dark amber
+                        "#795000", // level 2: medium-dark amber
+                        "#AA7000", // level 3: medium amber
+                        "#FFB000"  // level 4: bright amber
+                    ],
+
+                    amberThresholds: [
+                        24,
+                        64,
+                        120,
+                        192
+                    ],
+
+                    dithering: "ordered"
+                    //dithering: "floyd-steinberg"
+                }
+            );
+
+            console.log(animation);
+
+            display.animationQueue[display.selectedAnimation] = animation;
+            display.width = animation.width;
+            display.height = animation.height;
+            display.clearPixelData(display.animationQueue[display.selectedAnimation]);
+            // If you want the JSON string:
+            //const json = JSON.stringify(animation);
+
+            //console.log(json);
+
+        } catch (error) {
+            alert("Error converting video");
+            console.error("Error converting video", error);
+        }
+    });
+
     // Export animation button handler
     const fileOutput = document.getElementById('export');
     fileOutput.addEventListener('click', (event) => {
         if (display.animationQueue[display.selectedAnimation]) {
             const temp = structuredClone(display.animationQueue[display.selectedAnimation]);
-            compressFrames(temp);
+            //compressFrames(temp);
             let saveAs = "Animation-";
             var stringified = JSON.stringify(temp, null, 2); 
             var blob = new Blob([stringified], {type: "application/json"});
@@ -45,7 +103,10 @@ function init() {
                     const jsonString = e.target.result;
                     const jsonObject = JSON.parse(jsonString);
                     display.animationQueue[display.selectedAnimation] = jsonObject;
-                    expandFrames(display.animationQueue[display.selectedAnimation]);
+                    display.width = jsonObject.width;
+                    display.height = jsonObject.height;
+                    display.clearPixelData(display.animationQueue[display.selectedAnimation]);
+                    //expandFrames(display.animationQueue[display.selectedAnimation]);
                 } catch (error) {
                     alert('Error parsing file');
                     console.error("Error parsing file", error);
@@ -61,8 +122,8 @@ function init() {
     doResize();
     display = new DMDisplay();
     // background
-        bctx.fillStyle = '#000000';
-        bctx.fillRect(display.x, display.y, display.width * display.pixelSize, display.height * display.pixelSize);
+        //bctx.fillStyle = '#000000';
+        //bctx.fillRect(display.x, display.y, display.width * display.pixelSize, display.height * display.pixelSize);
     // display.printString("aAbBcCdDeEfFgGhHiIjJkKlLmMnNoO", 0, 0, '#FFB000')
     // display.printString("mMnNoOpPqQrRsStTuU", 0, 10, '#FFB000')
     // display.printString("tTuUvVwWxXyYzZaAbB", 0, 20, '#FFB000')
