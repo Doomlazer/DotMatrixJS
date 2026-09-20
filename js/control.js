@@ -28,108 +28,186 @@ function doClick(e) {
 function doKeyDown(e) {
     if (e.key == "e") {
         if (display.editMode == true) {
+            // Save current frame before leaving edit mode.
+            const a =
+                display.animationQueue[
+                    display.selectedAnimation
+                ];
+
+            if (a) {
+                a.frames[a.currentFrame] =
+                    display.compressFrame(
+                        display.pixelData,
+                        a
+                    );
+            }
+
             display.editMode = false;
         } else {
             display.editMode = true;
         }
+
+        return;
     }
 
-    if (display.editMode) {
-        if (e.key == "r") {
-            if (display.roundDots == true) {
-                display.roundDots = false;
-            } else {
-                display.roundDots = true;
-            }
-        }
+    if (!display.editMode) {
+        return;
+    }
 
-        // new frame
-        if (e.key == 'n') {
-            // compress the current frame 
-            let a = display.animationQueue[display.selectedAnimation];
-            let compressedFrame = display.compressFrame(display.pixelData);
-            a.frames[a.currentFrame] = compressedFrame;
+    const a =
+        display.animationQueue[
+            display.selectedAnimation
+        ];
 
-            // add the new frame
-            display.clearPixelData(a);
-            a.frames.push(display.pixelData);
-            a.currentFrame = a.frames.length - 1;
-        }
+    if (!a) {
+        return;
+    }
 
-        // copy current frame to new frame
-        if (e.key == 'c') {
-            // compress the frame
-            let a = display.animationQueue[display.selectedAnimation];
-            let compressedFrame = display.compressFrame(display.pixelData);
-            a.frames[a.currentFrame] = compressedFrame;
+    // Save current edited frame before doing anything else.
+    a.frames[a.currentFrame] =
+        display.compressFrame(
+            display.pixelData,
+            a
+        );
 
-            // then copy it to a new frame
-            a.frames.push(display.pixelData);
-            a.currentFrame = a.frames.length - 1;
-        }
+    if (e.key == "r") {
+        display.roundDots =
+            !display.roundDots;
+    }
 
-        if (e.key == 't') {
-            display.shiftFrameRows(0);
-        }
+    // ---------------------------------------------------------
+    // NEW FRAME
+    // ---------------------------------------------------------
 
-        if (e.key == 'y') {
-            display.shiftFrameRows(1);
-        }
+    if (e.key == "n") {
+        display.clearPixelData(a);
 
-        if (e.key == 'u') {
-            display.shiftFrameColumns(0);
-        }
+        const newFrame =
+            display.compressFrame(
+                display.pixelData,
+                a
+            );
 
-        if (e.key == 'i') {
-            display.shiftFrameColumns(1);
-        }
+        a.frames.push(newFrame);
+        a.currentFrame =
+            a.frames.length - 1;
+    }
 
-        if (e.key == 'd') {
-            let a = display.animationQueue[display.selectedAnimation];
-            const userConfirmed = confirm("Are you sure you want to delete frame " + a.currentFrame + "?");
-            if (userConfirmed) {
-                if (a.currentFrame > 0) {
-                    a.frames.splice(a.currentFrame, 1);
-                    a.currentFrame --;
-                } else {
-                    a.frames.splice(a.currentFrame, 1);
-                    display.clearPixelData(a);
-                    a.frames.push(display.pixelData);
-                    //alert("Sorry, cannot remove first frame");
+    // ---------------------------------------------------------
+    // CLONE FRAME
+    // ---------------------------------------------------------
+
+    if (e.key == "c") {
+        const newFrame =
+            display.compressFrame(
+                display.pixelData,
+                a
+            );
+
+        a.frames.push(newFrame);
+        a.currentFrame =
+            a.frames.length - 1;
+    }
+
+    // ---------------------------------------------------------
+    // SHIFT
+    // ---------------------------------------------------------
+
+    if (e.key == "t") {
+        display.shiftFrameRows(0);
+    }
+
+    if (e.key == "y") {
+        display.shiftFrameRows(1);
+    }
+
+    if (e.key == "u") {
+        display.shiftFrameColumns(0);
+    }
+
+    if (e.key == "i") {
+        display.shiftFrameColumns(1);
+    }
+
+    // ---------------------------------------------------------
+    // DELETE
+    // ---------------------------------------------------------
+
+    if (e.key == "d") {
+        const userConfirmed =
+            confirm(
+                "Are you sure you want to delete frame " +
+                a.currentFrame +
+                "?"
+            );
+
+        if (userConfirmed) {
+            if (a.frames.length > 1) {
+                a.frames.splice(
+                    a.currentFrame,
+                    1
+                );
+
+                if (
+                    a.currentFrame >=
+                    a.frames.length
+                ) {
+                    a.currentFrame =
+                        a.frames.length - 1;
                 }
+
+                display.pixelData =
+                    display.expandFrame(
+                        a.frames[a.currentFrame],
+                        a
+                    );
+            } else {
+                // Keep one blank frame.
+                display.clearPixelData(a);
+
+                a.frames[0] =
+                    display.compressFrame(
+                        display.pixelData,
+                        a
+                    );
+
+                a.currentFrame = 0;
             }
         }
+    }
 
-        // prev frame
-        if (e.key == 'o') {
-            let a = display.animationQueue[display.selectedAnimation];
-            if (a.currentFrame > 0) {
-                // compress the current frame 
-                let a = display.animationQueue[display.selectedAnimation];
-                let compressedFrame = display.compressFrame(display.pixelData);
-                a.frames[a.currentFrame] = compressedFrame;
+    // ---------------------------------------------------------
+    // PREVIOUS FRAME
+    // ---------------------------------------------------------
 
-                a.currentFrame --;
-                display.prevPixelData = [];
-                let expandedFrame = display.expandFrame(a.frames[a.currentFrame], a);
-                display.pixelData = expandedFrame;
-            }
+    if (e.key == "o") {
+        if (a.currentFrame > 0) {
+            a.currentFrame--;
+
+            display.pixelData =
+                display.expandFrame(
+                    a.frames[a.currentFrame],
+                    a
+                );
         }
+    }
 
-        // next frame
-        if (e.key == 'p') {
-            let a = display.animationQueue[display.selectedAnimation];
-            if (a.currentFrame < a.frames.length - 1) {
-                // compress the current frame 
-                let a = display.animationQueue[display.selectedAnimation];
-                let compressedFrame = display.compressFrame(display.pixelData);
-                a.frames[a.currentFrame] = compressedFrame;
+    // ---------------------------------------------------------
+    // NEXT FRAME
+    // ---------------------------------------------------------
 
-                a.currentFrame ++;
-                display.prevPixelData = [];
-                let expandedFrame = display.expandFrame(a.frames[a.currentFrame], a);
-                display.pixelData = expandedFrame;
-            }
+    if (e.key == "p") {
+        if (
+            a.currentFrame <
+            a.frames.length - 1
+        ) {
+            a.currentFrame++;
+
+            display.pixelData =
+                display.expandFrame(
+                    a.frames[a.currentFrame],
+                    a
+                );
         }
     }
 }

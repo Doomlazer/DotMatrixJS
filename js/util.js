@@ -73,7 +73,7 @@ function compressFrames(ani) {
         ani.frames[ind] = [...temp];          
     });
 }
-
+/*
 function expandFrames(ani) {
     let ind = 0;
     ani.frames.forEach((frame, i) => {
@@ -108,3 +108,4 @@ function compressFrame(ani, fNum) {
         }
         ani.frames[ind] = [...temp];          
 }
+        */

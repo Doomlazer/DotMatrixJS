@@ -14,12 +14,18 @@ function draw() {
 }
 
 function drawCursor() {
-    ctx.strokeStyle = '#FFFFFF';
+    ctx.strokeStyle = '#000000';
     ctx.lineWidth = 2;
     let x = mouseX,
     y = mouseY;
+    x -= 3;
     const line = [x,y,x,y+10,x+5,y+10,x+8,y+15,x+5,y+10,x+10,y+10,x,y];
     drawLine(line);
+
+    ctx.strokeStyle = '#FFFFFF';
+    x += 3;
+    const line1 = [x,y,x,y+10,x+5,y+10,x+8,y+15,x+5,y+10,x+10,y+10,x,y];
+    drawLine(line1);
 
     if (debug) {
         ctx.font = scaleFont(0.015, "arial");

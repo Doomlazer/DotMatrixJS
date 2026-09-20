@@ -13,7 +13,7 @@ function init() {
     //window.addEventListener("keyup", kUp);
     window.addEventListener('resize', doResize);
     
-    // convert mp4
+    /*/ convert mp4
     const videoInput = document.getElementById("convertMP4");
     videoInput.addEventListener("change", async (event) => {
         const file = event.target.files[0];
@@ -30,8 +30,8 @@ function init() {
                     maxWidth: 64,
                     fps: 8,
                     maxFrames: 100,
-                    //colorMode: "amber5",
-                    colorMode: "palette",
+                    colorMode: "amber5",
+                    //colorMode: "palette",
                     bgColor: "#000000",
 
                     amberColors: [
@@ -69,7 +69,7 @@ function init() {
             alert("Error converting video");
             console.error("Error converting video", error);
         }
-    });
+    });*/
 
     // Export animation button handler
     const fileOutput = document.getElementById('export');
@@ -78,7 +78,8 @@ function init() {
             const temp = structuredClone(display.animationQueue[display.selectedAnimation]);
             //compressFrames(temp);
             let saveAs = "Animation-";
-            var stringified = JSON.stringify(temp, null, 2); 
+            //var stringified = JSON.stringify(temp, null, 2);
+            var stringified = JSON.stringify(temp); 
             var blob = new Blob([stringified], {type: "application/json"});
             var url = URL.createObjectURL(blob);
             

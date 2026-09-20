@@ -15,9 +15,9 @@ class DMAnimiation {
         this.dir = dir;
         this.currentFrame = -1;
         this.frames = [];
-        this.frames.push(display.pixelData);
         if (type == 'animation') {
-            this.palette = display.defaultPalette; // limit to 256 color?
+            this.palette = [...display.defaultPalette];
+            display.selectedColor = this.palette.length - 1;
         }
         this.paletteWidth = 16;
         this.paletteSize = 16; // swatch size
@@ -101,27 +101,65 @@ class DMDisplay {
         // fill display with black
         bctx.fillStyle = col;
         bctx.fillRect(this.x, this.y, this.width * this.pixelSize, this.height * this.pixelSize);
+        
+        
         // zero out pixel data
         this.pixelData = [];
         for (let i = 0; i < this.width * this.height; i++) {
-            this.pixelData.push(ani.bgColor);
+            this.pixelData.push(col);
         }
+
+
+        // If the animation already has frames, * load the current frame. 
+        if (
+            Array.isArray(ani.frames) &&
+            ani.frames.length > 0 &&
+            ani.currentFrame >= 0
+        ) {
+            this.pixelData = this.expandFrame(ani.frames[ ani.currentFrame ], ani);
+            
+            return;
+        }
+        //Otherwise create a blank frame.
+        this.pixelData = new Array(this.width * this.height);
+        this.pixelData.fill(col);
     }
     
-    compressFrame(frame) {
+    compressFrame(frame, a) {
         let temp = [];
-        //console.log("frame ", frame)
+        const palette = a?.palette || display.defaultPalette;
+        console.log("palette ", palette);
+        if (!Array.isArray(frame)) {
+            throw new Error("compressFrame: frame must be an array");
+        }
+
+        if (!Array.isArray(palette) || palette.length === 0) {
+            throw new Error("compressFrame: palette is empty");
+        }
+
         for (let i = 0; i < frame.length; i ++) {
+            // count consecutive 
             let count = 1;
             while (frame[i] === frame[i+count]) {
-                // count consecutive 
                 count ++;
             }
-            //console.log("count ", count, ", frame[i] + count ", frame[i] + count, `, frame[${i}] `, frame[i]); // delete;
-            temp.push([
-                display.defaultPalette.indexOf(frame[i]), 
-                count
-            ]);
+
+            const paletteIndex = palette.indexOf(frame[i]);
+
+            if (paletteIndex === -1) {
+                console.log(
+                    "BAD COLOR:",
+                    JSON.stringify(frame[i]),
+                    "palette:",
+                    palette,
+                    "position:",
+                    i
+                );
+            }
+        
+            temp.push(palette.indexOf(frame[i])) 
+            temp.push(count);
+
             if (count > 1) {
                 i += count - 1;
             }
@@ -130,26 +168,28 @@ class DMDisplay {
     }
 
     expandFrame(frame, animation) {
-    let temp = [];
+        let temp = [];
 
-    const palette =
-        animation?.palette ||
-        display.defaultPalette;
+        const palette =
+            animation?.palette ||
+            display.defaultPalette;
 
-    frame.forEach(p => {
-        const colorIndex = p[0];
-        const count = p[1];
-
-        for (let j = 0; j < count; j++) {
-            temp.push(
-                palette[colorIndex]
-            );
+        if (this.selectedColor > palette.length - 1) {
+            this.selectedColor = palette.length - 1;
         }
-    });
+        for (let i = 0; i < frame.length; i += 2) {
+            const colorIndex = frame[i];
+            const count = frame[i+1];
 
-    console.log(palette, "palette", temp)
-    return temp;
-}
+            for (let j = 0; j < count; j++) {
+                temp.push(
+                    palette[colorIndex]
+                );
+            }
+        }
+
+        return temp;
+    }
 
     setPixel(x, y, color) {
         // x and y origin is 0, not 1
@@ -358,14 +398,16 @@ class DMDisplay {
                     let oY = mouseY - (this.height * this.pixelSize + 10 + this.y);
                     let newX = Math.floor(oX / a.paletteSize);
                     let newY = Math.floor(oY / a.paletteSize) * a.paletteWidth;
-                    this.selectedColor = newY + newX;
-                    //console.log("newX: " + newX + ", newY: " + newY);
+                    let i = newY + newX;
+                    if (i >= 0 && i < a.palette.length) {
+                        this.selectedColor = i;
+                    }
                 }
             }
             
             // detect click on pixel
             //ctx.fillRect(this.x, this.y, this.width * this.pixelSize, this.height * this.pixelSize);
-            if (mouseX >= this.x && mouseX <= (this.width+ 1) * this.pixelSize) {
+            if (mouseX >= this.x && mouseX <= this.x + (this.width + 1) * this.pixelSize) {
                 if (mouseY >= this.y && mouseY < this.height * this.pixelSize + this.y) {
                     let oX = mouseX - this.x
                     let oY = mouseY - this.y;
@@ -395,33 +437,54 @@ class DMDisplay {
     }
 
     shiftFrameRows(dir) {
-        let a = this.animationQueue[this.selectedAnimation];
-        let frame = a.frames[a.currentFrame];
-        for (let i = 0; i < this.height; i++) {
+        let frame = display.pixelData;
+        const width = this.width;
+        const height = this.height;
+
+        for (let y = 0; y < height; y++) {
+            const start = y * width;
             if (dir == 0) {
-                let temp = frame.splice(i * this.width, 1);
-                frame.splice(((i+1) * this.width) - 1, 0, temp);
+                // Move left pixel to right.
+                const temp = frame[start];
+                for (let x = 0; x < width - 1; x++) {
+                    frame[start + x] = frame[start + x + 1];
+                }
+                frame[start + width - 1] = temp;
             } else {
-                let temp = frame.splice(((i+1) * this.width) - 1, 1);
-                frame.splice(i * this.width, 0, temp);
+                // Move right pixel to left.
+                const temp = frame[start + width - 1];
+                for (let x = width - 1; x > 0; x--) {
+                    frame[start + x] = frame[start + x - 1];
+                }
+                frame[start] = temp;
             }
         }
     }
 
+
     shiftFrameColumns(dir) {
-        let a = this.animationQueue[this.selectedAnimation];
-        let frame = a.frames[a.currentFrame];
+        let frame = display.pixelData;
+        const width = this.width;
+        const height = this.height;
+
         if (dir == 0) {
-            // move up 
-            let temp = frame.splice(0, this.width);
-            for (let i = 0; i < temp.length; i++) {
-                frame.push(temp[i]);
+            // Move top row to bottom.
+            const temp = frame.slice(0, width);
+            for (let i = 0; i < (height - 1) * width; i++) {
+                frame[i] = frame[i + width];
+            }
+            for (let i = 0; i < width; i++) {
+                frame[(height - 1) * width + i] = temp[i];
             }
         } else {
-            // move down
-            let temp = frame.splice((frame.length - this.width), this.width);
-            for (let i = temp.length - 1; i > -1; i--) {
-                frame.unshift(temp[i]);
+            // Move bottom row to top.
+            const start = (height - 1) * width;
+            const temp = frame.slice(start, start + width);
+            for (let i = start - 1; i >= 0; i--) {
+                frame[i + width] = frame[i];
+            }
+            for (let i = 0; i < width; i++) {
+                frame[i] = temp[i];
             }
         }
     }

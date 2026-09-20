@@ -336,10 +336,10 @@ function encodeFrameFast(
                 previousIndex !== null
             ) {
 
-                output.push([
+                output.push(
                     previousIndex,
                     count
-                ]);
+                );
             }
 
             previousIndex =
@@ -353,10 +353,10 @@ function encodeFrameFast(
         previousIndex !== null
     ) {
 
-        output.push([
+        output.push(
             previousIndex,
             count
-        ]);
+        );
     }
 
     return output;
@@ -590,10 +590,10 @@ function appendAmberPixel(
             state.previousIndex !== null
         ) {
 
-            output.push([
+            output.push(
                 state.previousIndex,
                 state.count
-            ]);
+            );
         }
 
         state.previousIndex =
@@ -613,10 +613,10 @@ function finishAmberRLE(
         state.previousIndex !== null
     ) {
 
-        output.push([
+        output.push(
             state.previousIndex,
             state.count
-        ]);
+        );
     }
 }
 
@@ -757,7 +757,7 @@ function encodeAmberFrameOrdered(
     const output = [];
 
     const state = {
-        previousColor: null,
+        previousIndex: null,
         count: 0
     };
 
@@ -896,7 +896,7 @@ function encodeAmberFrameDithered(
         );
 
     const state = {
-        previousColor: null,
+        previousIndex: null,
         count: 0
     };
 
@@ -1317,44 +1317,41 @@ async function videoToAnimation(
 
     const {
 
-        bgColor = "#000000",
+        bgColor = options.bgColor || "#000000",
         
-        maxWidth = 132,
+        maxWidth = options.maxWidth || 64,
 
-        fps = 10,
+        fps = options.fps || 10,
 
-        maxFrames = 5000,
+        maxFrames = options.maxFrames || 5000,
 
-        colorMode = "palette",
+        colorMode = options.colorMode || "palette",
 
-        amberColors =
-            DEFAULT_AMBER_COLORS,
+        amberColors = options.amberColors || DEFAULT_AMBER_COLORS,
 
-        amberThresholds =
-            DEFAULT_AMBER_THRESHOLDS,
+        amberThresholds = options.amberThresholds || DEFAULT_AMBER_THRESHOLDS,
 
-        dithering =
-            "floyd-steinberg",
+        dithering = options.dithering || "floyd-steinberg",
 
-        color = "#000000",
+        color = options.color || "#000000",
 
-        speed = 5,
+        speed = options.speed || 5,
 
-        offset = 0,
+        offset = options.offset || 0,
 
-        aniDelay = 2,
+        aniDelay = options.aniDelay || 2,
 
-        repeats = true,
+        repeats = options.repeats ?? true,
 
-        dir = 0,
+        dir = options.dir || 0,
 
-        x = 0,
+        x = options.x || 0,
 
-        y = 0,
+        y = options.y || 0,
 
-        upscale = false,
+        upscale = options.upscale || false,
 
-        onProgress = null
+        onProgress = options.onProgress || null
 
     } = options;
 
@@ -1447,6 +1444,7 @@ if (colorMode === "palette") {
 
 } else if (colorMode === "amber5") {
 
+    display.selectedColor = 4;
     palette =
         amberColors.map(
             normalizeHex
@@ -1919,16 +1917,17 @@ if (!videoInput) {
                         {
 
                             maxWidth:
-                                132,
+                                64,
 
                             fps:
                                 10,
 
                             maxFrames:
-                                5000,
+                                500,
 
                             colorMode:
                                 "palette",
+                                //"amber5",
 
                             amberColors: [
                                 "#000000",
