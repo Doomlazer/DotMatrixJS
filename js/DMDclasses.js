@@ -38,8 +38,88 @@ class DMDisplay {
         this.animationQueue = [];
         this.editMode = true;
         this.selectedAnimation = -1;
-        this.bgColor = "#000000"
+        this.bgColor = "#000000";
+        this.btmCaptures = new Set();
         this.defaultPalette = [
+    // Blacks / Grays / Whites (25)
+    "#000000", "#181818", "#282828", "#383838",  "#484848", 
+    "#585858",  "#686868",  "#787878","#888888",  "#989898", 
+    "#A8A8A8",  "#C8C8C8",  "#FFFFFF",
+
+    // Reds (20)
+    "#200000", "#380000", "#500000", "#680000", "#800000",
+    "#980000", "#B00000", "#C00000", "#D00000", "#E00000",
+    "#F00000", "#FF1010", "#FF2828", "#FF4040", "#FF5858",
+    "#FF7070", "#FF8888", "#FFAAAA", "#FFCCCC", "#FFE0E0",
+
+    // Dark Reds / Crimson (10)
+    "#300010", "#480018", "#600020", "#780028", "#900030",
+    "#A80038", "#C00040", "#D80048", "#F00050", "#FF4068",
+
+    // Oranges (20)
+    "#301000", "#481800", "#602000", "#782800", "#903000",
+    "#A83800", "#C04000", "#D84800", "#F05000", "#FF5800",
+    "#FF6800", "#FF7800", "#FF8800", "#FF9800", "#FFA800",
+    "#FFB800", "#FFC000", "#FFCC40", "#FFD080", "#FFE0B0",
+
+    // Yellows (15)
+    "#302800", "#483C00", "#605000", "#786400", "#907800",
+    "#A89000", "#C0A800", "#D8C000", "#F0D000", "#FFE000",
+    "#FFE800", "#FFF000", "#FFF440", "#FFF880", "#FFFFC0",
+
+    // Greens (25)
+    "#001800", "#002800", "#003800", "#004800", "#005800",
+    "#006800", "#007800", "#008800", "#009800", "#00A800",
+    "#00B800", "#00C800", "#00D800", "#00E800", "#00F000",
+    "#10FF10", "#30FF30", "#50FF50", "#70FF70", "#90FF90",
+    "#A8FFA8", "#C0FFC0", "#D0FFD0", "#E0FFE0", "#F0FFF0",
+
+    // Olive / Yellow-Green (10)
+    "#182000", "#283000", "#384000", "#485000", "#586000",
+    "#687000", "#788000", "#889000", "#98A000", "#A8B000",
+
+    // Cyans / Teals (20)
+    "#001818", "#002828", "#003838", "#004848", "#005858",
+    "#006868", "#007878", "#008888", "#009898", "#00A8A8",
+    "#00B8B8", "#00C8C8", "#00D8D8", "#00E8E8", "#00F0F0",
+    "#10FFFF", "#40FFFF", "#70FFFF", "#A0FFFF", "#D0FFFF",
+
+    // Blues (30)
+    "#000018", "#000028", "#000038", "#000048", "#000058",
+    "#000068", "#000078", "#000088", "#000098", "#0000A8",
+    "#0000B8", "#0000C8", "#0000D8", "#0000E8", "#0000F0",
+    "#1010FF", "#2828FF", "#4040FF", "#5858FF", "#7070FF",
+    "#8888FF", "#A0A0FF", "#B0B0FF", "#C0C0FF", "#D0D0FF",
+    "#E0E0FF", "#E8E8FF", "#F0F0FF", "#F8F8FF", "#FFFFFF",
+
+    // Blue / Violet (10)
+    "#080020", "#100038", "#180050", "#200068", "#280080",
+    "#300098", "#3800B0", "#4000C8", "#5000E0", "#6040FF",
+
+    // Purples (20)
+    "#180020", "#280030", "#380040", "#480050", "#580060",
+    "#680070", "#780080", "#880090", "#9800A0", "#A800B0",
+    "#B800C0", "#C800D0", "#D800E0", "#E800F0", "#F000FF",
+    "#F020FF", "#F040FF", "#F060FF", "#F080FF", "#F0A0FF",
+
+    // Magentas / Pinks (15)
+    "#200010", "#380018", "#500020", "#680028", "#800030",
+    "#980038", "#B00040", "#C00050", "#D00060", "#E00070",
+    "#F00080", "#FF0090", "#FF30A8", "#FF60C0", "#FF90D8",
+
+    // Browns / Earth (20)
+    "#180C00", "#281400", "#381C00", "#482400", "#582C00",
+    "#683400", "#783C00", "#884400", "#984C00", "#A85400",
+    "#B85C00", "#C86400", "#D06C10", "#D87820", "#E08030",
+    "#E89040", "#F0A050", "#F4B070", "#F8C090", "#FCD0B0",
+
+    // Skin / Peach (15)
+    "#301810", "#482018", "#602820", "#783028", "#903830",
+    "#A84038", "#C05048", "#D06058", "#E07068", "#E88078",
+    "#F09080", "#F4A090", "#F8B0A0", "#FCC0B0", "#FFD0C0"
+];
+
+        this.defaultPalette1 = [
             // Grayscale
             '#000000', '#1C1C1C', '#383838', '#555555',
             '#707070', '#8A8A8A', '#A6A6A6', '#C0C0C0',
@@ -146,7 +226,7 @@ class DMDisplay {
 
             const paletteIndex = palette.indexOf(frame[i]);
 
-            if (paletteIndex === -1) {
+            /*if (paletteIndex === -1) {
                 console.log(
                     "BAD COLOR:",
                     JSON.stringify(frame[i]),
@@ -155,9 +235,9 @@ class DMDisplay {
                     "position:",
                     i
                 );
-            }
+            }*/
         
-            temp.push(palette.indexOf(frame[i])) 
+            temp.push(paletteIndex) 
             temp.push(count);
 
             if (count > 1) {
@@ -343,6 +423,9 @@ class DMDisplay {
                     //ctx.fillText("Toggle dot/pixel: press 't'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 190 + this.y);
                     ctx.fillText("Shift left/right: press 't' & 'y'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 220 + this.y);
                     ctx.fillText("Shift up/down: press 'u' & 'i'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 240 + this.y);
+
+                    ctx.fillText("Download BMP of current frame: press 'a'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 260 + this.y);
+                    ctx.fillText("Download video of current frame: press 'A'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 280 + this.y);
                 }
             } else {
                 // console.log("printing button");
@@ -353,7 +436,7 @@ class DMDisplay {
         } else {
             ctx.font = "20px Arial";
             ctx.fillStyle = '#000000';
-            ctx.fillText("Toggle edit/play mode: press 'e'", this.x + 20, this.height * this.pixelSize + 180 + this.y);
+            ctx.fillText("Toggle edit/play mode: press 'e'", this.x + 20, this.height * this.pixelSize + 30 + this.y);
         }
     }
 

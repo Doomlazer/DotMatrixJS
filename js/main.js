@@ -12,64 +12,6 @@ function init() {
     window.addEventListener('mouseup', doMouseUp);
     //window.addEventListener("keyup", kUp);
     window.addEventListener('resize', doResize);
-    
-    /*/ convert mp4
-    const videoInput = document.getElementById("convertMP4");
-    videoInput.addEventListener("change", async (event) => {
-        const file = event.target.files[0];
-
-        if (!file) {
-            return;
-        }
-
-        try {
-            const animation = await videoToAnimation(
-                file,
-                display,
-                {
-                    maxWidth: 64,
-                    fps: 8,
-                    maxFrames: 100,
-                    colorMode: "amber5",
-                    //colorMode: "palette",
-                    bgColor: "#000000",
-
-                    amberColors: [
-                        "#000000", // level 0: black
-                        "#443000", // level 1: dark amber
-                        "#795000", // level 2: medium-dark amber
-                        "#AA7000", // level 3: medium amber
-                        "#FFB000"  // level 4: bright amber
-                    ],
-
-                    amberThresholds: [
-                        24,
-                        64,
-                        120,
-                        192
-                    ],
-
-                    dithering: "ordered"
-                    //dithering: "floyd-steinberg"
-                }
-            );
-
-            console.log(animation);
-
-            display.animationQueue[display.selectedAnimation] = animation;
-            display.width = animation.width;
-            display.height = animation.height;
-            display.clearPixelData(display.animationQueue[display.selectedAnimation]);
-            // If you want the JSON string:
-            //const json = JSON.stringify(animation);
-
-            //console.log(json);
-
-        } catch (error) {
-            alert("Error converting video");
-            console.error("Error converting video", error);
-        }
-    });*/
 
     // Export animation button handler
     const fileOutput = document.getElementById('export');

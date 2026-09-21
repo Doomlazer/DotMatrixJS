@@ -210,4 +210,15 @@ function doKeyDown(e) {
                 );
         }
     }
+
+    if(e.key == "a") {
+        bctx.width = display.width + 10;
+        bctx.height = display.height + 10;
+        captureFrame(display.width, display.height);
+    }
+    if(e.key == "A") {
+        //captureFrame(display.width, display.height);
+        exportAnimation(display.width, display.height, 10);
+    }
+
 }

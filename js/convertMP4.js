@@ -121,9 +121,11 @@ function getLuminance(r, g, b) {
 
 /* ============================================================
  * PALETTE LOOKUP
- * ============================================================
  *
- * 32 * 32 * 32 = 32768 entries.
+ * Supports palettes larger than 255 colors.
+ *
+ * 64 * 64 * 64 = 262,144 entries
+ * Uint16Array supports palette indexes up to 65,535.
  * ============================================================
  */
 
@@ -141,20 +143,102 @@ function createPaletteLookup(palette) {
         );
     }
 
+    if (paletteRGB.length > 65535) {
+        throw new Error(
+            "Palette cannot contain more than 65535 colors."
+        );
+    }
+
+    /*
+     * 64 levels per RGB channel.
+     *
+     * Much more accurate than 32x32x32 for large palettes.
+     */
+    const LOOKUP_BITS = 6;
+    const LOOKUP_SIZE = 1 << LOOKUP_BITS; // 64
+    const LOOKUP_MASK = LOOKUP_SIZE - 1;
+
     const lookup =
-        new Uint8Array(
-            32 * 32 * 32
+        new Uint16Array(
+            LOOKUP_SIZE *
+            LOOKUP_SIZE *
+            LOOKUP_SIZE
         );
 
-    for (let r = 0; r < 32; r++) {
+    /*
+     * Exact RGB -> palette index.
+     *
+     * This guarantees that if the source pixel is EXACTLY
+     * one of the palette colors, it gets that exact palette
+     * entry instead of relying on the coarse lookup.
+     */
+    const exactMap = new Map();
 
-        for (let g = 0; g < 32; g++) {
+    for (
+        let i = 0;
+        i < paletteRGB.length;
+        i++
+    ) {
 
-            for (let b = 0; b < 32; b++) {
+        const p =
+            paletteRGB[i];
 
-                const rr = (r << 3) + 4;
-                const gg = (g << 3) + 4;
-                const bb = (b << 3) + 4;
+        const key =
+            (p.r << 16) |
+            (p.g << 8) |
+            p.b;
+
+        /*
+         * Keep the first occurrence if the palette contains
+         * duplicate colors.
+         */
+        if (!exactMap.has(key)) {
+            exactMap.set(key, i);
+        }
+    }
+
+    /*
+     * Build the 64^3 nearest-color lookup.
+     *
+     * Each cell represents the center of its RGB range.
+     */
+    for (
+        let r = 0;
+        r < LOOKUP_SIZE;
+        r++
+    ) {
+
+        for (
+            let g = 0;
+            g < LOOKUP_SIZE;
+            g++
+        ) {
+
+            for (
+                let b = 0;
+                b < LOOKUP_SIZE;
+                b++
+            ) {
+
+                /*
+                 * Center of this lookup cell.
+                 *
+                 * 0..63 -> approximately 0..255
+                 */
+                const rr =
+                    Math.round(
+                        ((r + 0.5) / LOOKUP_SIZE) * 255
+                    );
+
+                const gg =
+                    Math.round(
+                        ((g + 0.5) / LOOKUP_SIZE) * 255
+                    );
+
+                const bb =
+                    Math.round(
+                        ((b + 0.5) / LOOKUP_SIZE) * 255
+                    );
 
                 let bestIndex = 0;
                 let bestDistance = Infinity;
@@ -168,19 +252,38 @@ function createPaletteLookup(palette) {
                     const p =
                         paletteRGB[i];
 
-                    const dr =
-                        rr - p.r;
+                    const sourceMax = Math.max(rr, gg, bb);
+const sourceMin = Math.min(rr, gg, bb);
+const sourceChroma = sourceMax - sourceMin;
 
-                    const dg =
-                        gg - p.g;
+const paletteMax = Math.max(p.r, p.g, p.b);
+const paletteMin = Math.min(p.r, p.g, p.b);
+const paletteChroma = paletteMax - paletteMin;
 
-                    const db =
-                        bb - p.b;
+const dr = rr - p.r;
+const dg = gg - p.g;
+const db = bb - p.b;
 
-                    const distance =
-                        dr * dr +
-                        dg * dg +
-                        db * db;
+const rgbDistance =
+    dr * dr +
+    dg * dg +
+    db * db;
+
+const chromaError =
+    sourceChroma - paletteChroma;
+
+let distance =
+    rgbDistance +
+    chromaError * chromaError * 2.5;
+
+// If the source is noticeably colored,
+// heavily discourage a neutral palette entry.
+if (
+    sourceChroma > 35 &&
+    paletteChroma < 12
+) {
+    distance += 2500;
+}
 
                     if (
                         distance <
@@ -200,8 +303,8 @@ function createPaletteLookup(palette) {
                 }
 
                 const index =
-                    (r << 10) |
-                    (g << 5) |
+                    (r << 12) |
+                    (g << 6) |
                     b;
 
                 lookup[index] =
@@ -213,7 +316,17 @@ function createPaletteLookup(palette) {
     return {
         lookup,
         palette: normalizedPalette,
-        paletteRGB
+        paletteRGB,
+        exactMap,
+
+        lookupBits:
+            LOOKUP_BITS,
+
+        lookupSize:
+            LOOKUP_SIZE,
+
+        lookupMask:
+            LOOKUP_MASK
     };
 }
 
@@ -254,7 +367,7 @@ class ColorCache {
 
 
 /* ============================================================
- * NORMAL PALETTE FRAME ENCODER
+ * FAST PALETTE FRAME ENCODER
  * ============================================================
  */
 
@@ -270,62 +383,165 @@ function encodeFrameFast(
     let previousIndex = null;
     let count = 0;
 
+    const lookup =
+        paletteLookup.lookup;
+
+    const exactMap =
+        paletteLookup.exactMap;
+
+    const lookupBits =
+        paletteLookup.lookupBits;
+
+    const paletteLength =
+        palette.length;
+
+    /*
+     * Safety check.
+     */
+    if (
+        paletteLength > 65535
+    ) {
+        throw new Error(
+            "Palette cannot contain more than 65535 colors."
+        );
+    }
+
     for (
         let i = 0;
         i < data.length;
         i += 4
     ) {
 
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        const a = data[i + 3];
+        const r =
+            data[i];
+
+        const g =
+            data[i + 1];
+
+        const b =
+            data[i + 2];
+
+        const a =
+            data[i + 3];
 
         let paletteIndex;
 
+        /*
+         * Transparent pixels always use palette index 0.
+         */
         if (a < 128) {
 
-            /*
-             * Transparent pixels use palette index 0.
-             */
             paletteIndex = 0;
 
         } else {
 
-            const cacheKey =
-                (
-                    (r << 24) |
-                    (g << 16) |
-                    (b << 8) |
-                    a
-                ) >>> 0;
+            /*
+             * ------------------------------------------------
+             * Exact color check
+             * ------------------------------------------------
+             *
+             * This is important for large palettes.
+             *
+             * If the source pixel exactly equals a palette
+             * color, use that exact palette entry.
+             */
+            const exactKey =
+                (r << 16) |
+                (g << 8) |
+                b;
 
             paletteIndex =
-                colorCache.get(cacheKey);
+                exactMap.get(exactKey);
 
             if (
                 paletteIndex === undefined
             ) {
 
-                const lookupIndex =
-                    ((r >> 3) << 10) |
-                    ((g >> 3) << 5) |
-                    (b >> 3);
+                /*
+                 * ------------------------------------------------
+                 * Cache
+                 * ------------------------------------------------
+                 */
+
+                const cacheKey =
+                    (
+                        (r << 24) |
+                        (g << 16) |
+                        (b << 8) |
+                        a
+                    ) >>> 0;
 
                 paletteIndex =
-                    paletteLookup[
-                        lookupIndex
-                    ];
+                    colorCache.get(cacheKey);
 
-                colorCache.set(
-                    cacheKey,
-                    paletteIndex
-                );
+                if (
+                    paletteIndex === undefined
+                ) {
+
+                    /*
+                     * ------------------------------------------------
+                     * 64x64x64 lookup
+                     * ------------------------------------------------
+                     *
+                     * 8-bit RGB:
+                     *
+                     * r >> 2
+                     * g >> 2
+                     * b >> 2
+                     *
+                     * gives 0..63.
+                     */
+                    const rr =
+                        r >> (8 - lookupBits);
+
+                    const gg =
+                        g >> (8 - lookupBits);
+
+                    const bb =
+                        b >> (8 - lookupBits);
+
+                    const lookupIndex =
+                        (rr << 12) |
+                        (gg << 6) |
+                        bb;
+
+                    paletteIndex =
+                        lookup[
+                            lookupIndex
+                        ];
+
+                    /*
+                     * Extra safety in case a bad lookup somehow
+                     * returns outside the palette.
+                     */
+                    if (
+                        paletteIndex >=
+                        paletteLength
+                    ) {
+
+                        throw new Error(
+                            `Palette lookup returned invalid index ${paletteIndex} ` +
+                            `for palette of ${paletteLength} colors.`
+                        );
+                    }
+
+                    colorCache.set(
+                        cacheKey,
+                        paletteIndex
+                    );
+                }
             }
         }
 
+        /*
+         * ----------------------------------------------------
+         * RLE
+         * ----------------------------------------------------
+         */
+
         if (
-            paletteIndex === previousIndex
+            paletteIndex ===
+            previousIndex
         ) {
 
             count++;
@@ -349,6 +565,9 @@ function encodeFrameFast(
         }
     }
 
+    /*
+     * Finish final run.
+     */
     if (
         previousIndex !== null
     ) {
@@ -1748,7 +1967,7 @@ if (colorMode === "palette") {
                     encodeFrameFast(
                         image.data,
                         paletteData.palette,
-                        paletteData.lookup,
+                        paletteData,
                         colorCache
                     );
             }
@@ -2063,4 +2282,498 @@ if (!videoInput) {
             }
         }
     );
+}
+
+async function captureFrame(w, h) {
+    const saveAs = "frame-";
+
+    const width = w * display.pixelSize;
+    const height = h * display.pixelSize;
+
+    const ani =
+        display.animationQueue[display.selectedAnimation];
+
+    if (!ani || ani.type !== "animation") {
+        throw new Error("Selected animation is not an animation.");
+    }
+
+    // ------------------------------------------------------------
+    // Save current state
+    // ------------------------------------------------------------
+
+    const saved = {
+        canvasWidth: bctx.canvas.width,
+        canvasHeight: bctx.canvas.height,
+
+        pixelData: display.pixelData,
+        prevPixelData: display.prevPixelData,
+
+        currentFrame: ani.currentFrame,
+        aniDelay: ani.aniDelay,
+
+        editMode: display.editMode,
+        bgColor: display.bgColor
+    };
+
+    try {
+
+        // --------------------------------------------------------
+        // Resize bctx to the FULL animation dimensions.
+        //
+        // This is the important part. The browser viewport does
+        // NOT limit the canvas backing buffer.
+        // --------------------------------------------------------
+
+        bctx.canvas.width = width;
+        bctx.canvas.height = height;
+
+        // --------------------------------------------------------
+        // Select the current animation frame.
+        // --------------------------------------------------------
+
+        const framePixels =
+            display.expandFrame(
+                ani.frames[ani.currentFrame],
+                ani
+            );
+
+        display.pixelData = framePixels;
+
+        // Force drawMatrix() to draw EVERY pixel.
+        display.prevPixelData =
+            new Array(framePixels.length).fill(null);
+
+        // Don't allow drawMatrix() to advance animation.
+        display.editMode = true;
+
+        // --------------------------------------------------------
+        // Draw the complete frame.
+        // --------------------------------------------------------
+
+        display.drawMatrix();
+
+        // --------------------------------------------------------
+        // Read the ENTIRE backing canvas.
+        // --------------------------------------------------------
+
+        const imageData =
+            bctx.getImageData(
+                0,
+                0,
+                width,
+                height
+            );
+
+        const pixels = imageData.data;
+
+        // --------------------------------------------------------
+        // Create BMP
+        // --------------------------------------------------------
+
+        const rowSize =
+            Math.ceil((width * 3) / 4) * 4;
+
+        const pixelDataSize =
+            rowSize * height;
+
+        const fileSize =
+            54 + pixelDataSize;
+
+        const buffer =
+            new ArrayBuffer(fileSize);
+
+        const view =
+            new DataView(buffer);
+
+        // BMP file header
+        view.setUint8(0, 0x42); // B
+        view.setUint8(1, 0x4D); // M
+
+        view.setUint32(
+            2,
+            fileSize,
+            true
+        );
+
+        view.setUint16(6, 0, true);
+        view.setUint16(8, 0, true);
+
+        view.setUint32(
+            10,
+            54,
+            true
+        );
+
+        // DIB header
+        view.setUint32(
+            14,
+            40,
+            true
+        );
+
+        view.setInt32(
+            18,
+            width,
+            true
+        );
+
+        // Positive = bottom-up BMP
+        view.setInt32(
+            22,
+            height,
+            true
+        );
+
+        view.setUint16(
+            26,
+            1,
+            true
+        );
+
+        view.setUint16(
+            28,
+            24,
+            true
+        );
+
+        // No compression
+        view.setUint32(
+            30,
+            0,
+            true
+        );
+
+        view.setUint32(
+            34,
+            pixelDataSize,
+            true
+        );
+
+        // Resolution
+        view.setInt32(
+            38,
+            2835,
+            true
+        );
+
+        view.setInt32(
+            42,
+            2835,
+            true
+        );
+
+        view.setUint32(46, 0, true);
+        view.setUint32(50, 0, true);
+
+        // --------------------------------------------------------
+        // RGBA -> BGR
+        // --------------------------------------------------------
+
+        let offset = 54;
+
+        for (let y = height - 1; y >= 0; y--) {
+
+            for (let x = 0; x < width; x++) {
+
+                const src =
+                    (y * width + x) * 4;
+
+                view.setUint8(
+                    offset++,
+                    pixels[src + 2]
+                ); // B
+
+                view.setUint8(
+                    offset++,
+                    pixels[src + 1]
+                ); // G
+
+                view.setUint8(
+                    offset++,
+                    pixels[src]
+                ); // R
+            }
+
+            // BMP row padding
+            while (
+                (offset - 54) % rowSize !== 0
+            ) {
+                view.setUint8(
+                    offset++,
+                    0
+                );
+            }
+        }
+
+        // --------------------------------------------------------
+        // Download
+        // --------------------------------------------------------
+
+        const blob = new Blob(
+            [buffer],
+            {
+                type: "image/bmp"
+            }
+        );
+
+        const url =
+            URL.createObjectURL(blob);
+
+        const a =
+            document.createElement("a");
+
+        a.href = url;
+
+        a.download =
+            `${saveAs}${display.selectedAnimation}.bmp`;
+
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+        }, 1000);
+
+        return blob;
+
+    } finally {
+
+        // --------------------------------------------------------
+        // Restore the live canvas/state.
+        // --------------------------------------------------------
+
+        display.pixelData = saved.pixelData;
+        display.prevPixelData = saved.prevPixelData;
+
+        ani.currentFrame = saved.currentFrame;
+        ani.aniDelay = saved.aniDelay;
+
+        display.editMode = saved.editMode;
+        display.bgColor = saved.bgColor;
+
+        // Restore canvas size.
+        //
+        // NOTE: changing canvas width/height clears it, so your
+        // normal render loop should redraw it afterward.
+        bctx.canvas.width = saved.canvasWidth;
+        bctx.canvas.height = saved.canvasHeight;
+    }
+}
+
+
+
+async function exportAnimation(w, h, fps = 10) {
+    const ani = display.animationQueue[display.selectedAnimation];
+
+    if (!ani || ani.type !== "animation") {
+        throw new Error("Selected item is not an animation.");
+    }
+
+    const width = w * display.pixelSize;
+    const height = h * display.pixelSize;
+
+    // ------------------------------------------------------------
+    // Save ALL state that we are going to touch
+    // ------------------------------------------------------------
+
+    const saved = {
+        editMode: display.editMode,
+        currentFrame: ani.currentFrame,
+        pixelData: display.pixelData,
+        prevPixelData: display.prevPixelData,
+        bgColor: display.bgColor,
+        aniDelay: ani.aniDelay
+    };
+
+    // ------------------------------------------------------------
+    // Canvas setup
+    // ------------------------------------------------------------
+
+    bctx.canvas.width = width;
+    bctx.canvas.height = height;
+
+    // IMPORTANT:
+    // 0 = don't capture automatically.
+    // We explicitly call requestFrame() once per animation frame.
+    const stream = bctx.canvas.captureStream(0);
+
+    const track = stream.getVideoTracks()[0];
+
+    const mimeTypes = [
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm"
+    ];
+
+    const mimeType = mimeTypes.find(type =>
+        MediaRecorder.isTypeSupported(type)
+    );
+
+    if (!mimeType) {
+        track.stop();
+        throw new Error("Browser does not support WebM recording.");
+    }
+
+    const recorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: 8_000_000
+    });
+
+    const chunks = [];
+
+    recorder.ondataavailable = event => {
+        if (event.data && event.data.size > 0) {
+            chunks.push(event.data);
+        }
+    };
+
+    const stopped = new Promise((resolve, reject) => {
+        recorder.onstop = resolve;
+
+        recorder.onerror = event => {
+            reject(event.error || new Error("MediaRecorder error"));
+        };
+    });
+
+    // ------------------------------------------------------------
+    // Start recording
+    // ------------------------------------------------------------
+
+    recorder.start(1000);
+
+    // Give MediaRecorder time to initialize.
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    try {
+        // Don't let normal animation playback modify the frame.
+        display.editMode = false;
+
+        const frameCount = ani.frames.length;
+
+        console.log(
+            `Exporting ${frameCount} frames at ${fps} FPS`
+        );
+
+        // --------------------------------------------------------
+        // Render EVERY animation frame independently
+        // --------------------------------------------------------
+
+        for (let i = 0; i < frameCount; i++) {
+
+            // Select EXACT animation frame.
+            ani.currentFrame = i;
+
+            // Convert this animation frame into pixelData.
+            const framePixels =
+                display.expandFrame(
+                    ani.frames[i],
+                    ani
+                );
+
+            display.pixelData = framePixels;
+
+            // ----------------------------------------------------
+            // IMPORTANT
+            //
+            // drawMatrix() only draws pixels that differ from
+            // prevPixelData.
+            //
+            // Force every pixel to redraw.
+            // ----------------------------------------------------
+
+            display.prevPixelData =
+                new Array(framePixels.length).fill(null);
+
+            // ----------------------------------------------------
+            // Draw the frame to bctx
+            // ----------------------------------------------------
+
+            display.drawMatrix();
+
+            // ----------------------------------------------------
+            // Explicitly tell CanvasCaptureMediaStreamTrack:
+            // "THIS is the video frame."
+            // ----------------------------------------------------
+
+            if (typeof track.requestFrame === "function") {
+                track.requestFrame();
+            }
+
+            // ----------------------------------------------------
+            // Keep the video timing at the requested FPS.
+            // ----------------------------------------------------
+
+            await new Promise(resolve =>
+                setTimeout(resolve, 1000 / fps)
+            );
+
+            if (i % 25 === 0) {
+                console.log(
+                    `Exporting frame ${i + 1}/${frameCount}`
+                );
+            }
+        }
+
+    } finally {
+
+        // --------------------------------------------------------
+        // Restore EVERYTHING we changed.
+        // --------------------------------------------------------
+
+        display.editMode = saved.editMode;
+        ani.currentFrame = saved.currentFrame;
+        display.pixelData = saved.pixelData;
+        display.prevPixelData = saved.prevPixelData;
+        display.bgColor = saved.bgColor;
+        ani.aniDelay = saved.aniDelay;
+    }
+
+    // ------------------------------------------------------------
+    // Finish recording
+    // ------------------------------------------------------------
+
+    recorder.stop();
+
+    await stopped;
+
+    track.stop();
+
+    if (chunks.length === 0) {
+        throw new Error("MediaRecorder produced no video data.");
+    }
+
+    const blob = new Blob(chunks, {
+        type: mimeType
+    });
+
+    console.log(
+        `Export complete: ${ani.frames.length} frames`
+    );
+
+    console.log(
+        `Video size: ${(blob.size / 1024 / 1024).toFixed(2)} MB`
+    );
+
+    // ------------------------------------------------------------
+    // Download
+    // ------------------------------------------------------------
+
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+
+    a.href = url;
+    a.download =
+        `animation-${display.selectedAnimation}.webm`;
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    setTimeout(() => {
+        URL.revokeObjectURL(url);
+    }, 5000);
+
+    return blob;
 }
