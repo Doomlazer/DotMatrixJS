@@ -412,7 +412,7 @@ class DMDisplay {
                     this.drawPalette(a);
                     ctx.font = "20px Arial";
                     ctx.fillStyle = '#030000ff';
-                    ctx.fillText("Frame " + (a.currentFrame + 1) + " of " + a.frames.length, this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 30 + this.y);
+                    ctx.fillText("Frame " + (a.currentFrame + 1) + " of " + Math.max(a.frames.length, 1), this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 30 + this.y);
                     ctx.fillText("New Frame: press 'n'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 60 + this.y);
                     ctx.fillText("Clone current Frame: press 'c'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 80 + this.y);
                     ctx.fillText("Delete current Frame: press 'd'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 100 + this.y);
@@ -423,7 +423,6 @@ class DMDisplay {
                     //ctx.fillText("Toggle dot/pixel: press 't'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 190 + this.y);
                     ctx.fillText("Shift left/right: press 't' & 'y'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 220 + this.y);
                     ctx.fillText("Shift up/down: press 'u' & 'i'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 240 + this.y);
-
                     ctx.fillText(`'[' or ']' to change pixel size: ${display.pixelSize}`, this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 280 + this.y);
 
                     ctx.fillText(`Changing width or heigh will DESTROY CUR. ANIMATION!!`, this.x + (a.paletteSize * a.paletteWidth) + 400, this.height * this.pixelSize + 30 + this.y);
@@ -588,11 +587,11 @@ class DMDisplay {
             if (this.pixelSize < 2) {
                 this.pixelSize = 2;
             }
-            this.reDraw();
+            this.reDraw(false);
         }
         if (e.key == "]") {
             this.pixelSize ++;
-            this.reDraw();
+            this.reDraw(false);
         }
 
 
@@ -601,25 +600,14 @@ class DMDisplay {
             return;
         }
 
-        const a =
-            this.animationQueue[
-                this.selectedAnimation
-            ];
-
-        if (!a) {
-            return;
-        }
+        const a = this.animationQueue[this.selectedAnimation];
+        if (!a) {return;}
 
         // Save current edited frame before doing anything else.
-        a.frames[a.currentFrame] =
-            this.compressFrame(
-                this.pixelData,
-                a
-            );
+        a.frames[a.currentFrame] = this.compressFrame(this.pixelData, a);
 
         if (e.key == "r") {
-            this.roundDots =
-                !this.roundDots;
+            this.roundDots = !this.roundDots;
         }
 
         // ---------------------------------------------------------
@@ -645,15 +633,9 @@ class DMDisplay {
         // ---------------------------------------------------------
 
         if (e.key == "c") {
-            const newFrame =
-                this.compressFrame(
-                    this.pixelData,
-                    a
-                );
-
+            const newFrame = this.compressFrame(this.pixelData, a);
             a.frames.push(newFrame);
-            a.currentFrame =
-                a.frames.length - 1;
+            a.currentFrame = a.frames.length - 1;
         }
 
         // ---------------------------------------------------------
@@ -681,43 +663,23 @@ class DMDisplay {
         // ---------------------------------------------------------
 
         if (e.key == "d") {
-            const userConfirmed =
-                confirm(
-                    "Are you sure you want to delete frame " +
-                    a.currentFrame +
-                    "?"
-                );
+            const userConfirmed = confirm(
+                "Are you sure you want to delete frame " +
+                a.currentFrame +
+                "?"
+            );
 
             if (userConfirmed) {
                 if (a.frames.length > 1) {
-                    a.frames.splice(
-                        a.currentFrame,
-                        1
-                    );
-
-                    if (
-                        a.currentFrame >=
-                        a.frames.length
-                    ) {
-                        a.currentFrame =
-                            a.frames.length - 1;
+                    a.frames.splice(a.currentFrame, 1);
+                    if (a.currentFrame >=  a.frames.length) {
+                        a.currentFrame = a.frames.length - 1;
                     }
-
-                    this.pixelData =
-                        this.expandFrame(
-                            a.frames[a.currentFrame],
-                            a
-                        );
+                    this.pixelData = this.expandFrame(a.frames[a.currentFrame], a);
                 } else {
-                    // Keep one blank frame.
+                    // Keep at least one blank frame.
                     this.clearPixelData(a);
-
-                    a.frames[0] =
-                        this.compressFrame(
-                            this.pixelData,
-                            a
-                        );
-
+                    a.frames[0] = this.compressFrame(this.pixelData, a);
                     a.currentFrame = 0;
                 }
             }
@@ -730,12 +692,7 @@ class DMDisplay {
         if (e.key == "o") {
             if (a.currentFrame > 0) {
                 a.currentFrame--;
-
-                this.pixelData =
-                    this.expandFrame(
-                        a.frames[a.currentFrame],
-                        a
-                    );
+                this.pixelData = this.expandFrame(a.frames[a.currentFrame], a);
             }
         }
 
@@ -744,17 +701,9 @@ class DMDisplay {
         // ---------------------------------------------------------
 
         if (e.key == "p") {
-            if (
-                a.currentFrame <
-                a.frames.length - 1
-            ) {
+            if (a.currentFrame < a.frames.length - 1) {
                 a.currentFrame++;
-
-                this.pixelData =
-                    this.expandFrame(
-                        a.frames[a.currentFrame],
-                        a
-                    );
+                this.pixelData = this.expandFrame(a.frames[a.currentFrame], a);
             }
         }
 
@@ -771,6 +720,7 @@ class DMDisplay {
             //captureFrame(this.width, this.height);
             exportAnimation(this.width, this.height, 10);
         }
+
     }
 
     shiftFrameRows(dir) {
@@ -826,7 +776,7 @@ class DMDisplay {
         }
     }
 
-    reDraw() {
+    reDraw(destroy = true) {
         bctx.fillStyle =  "#FFFFFF";
         bctx.fillRect(0, 0, c.width, c.height);
         let ani = this.animationQueue[this.selectedAnimation];
@@ -837,13 +787,16 @@ class DMDisplay {
             this.width * this.pixelSize,
             this.height * this.pixelSize
         );
-        this.pixelData = [];
-        for (let i = 0; i < this.width * this.height; i++) {
-            this.pixelData.push(ani.bgColor);
+        if (destroy) {
+            this.pixelData = [];
+            for (let i = 0; i < this.width * this.height; i++) {
+                this.pixelData.push(ani.bgColor);
+            }
         }
         this.prevPixelData = [];
         for (let i = 0; i < this.width * this.height; i++) {
             this.prevPixelData.push(ani.bgColor);
         }
+        drawPalette(ani)
     }
 }
