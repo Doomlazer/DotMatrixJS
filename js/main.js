@@ -12,6 +12,9 @@ function init() {
     window.addEventListener('mouseup', doMouseUp);
     //window.addEventListener("keyup", kUp);
     window.addEventListener('resize', doResize);
+    canvas.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+    });
 
     // Export animation button handler
     const fileOutput = document.getElementById('export');

@@ -208,7 +208,7 @@ class DMDisplay {
     compressFrame(frame, a) {
         let temp = [];
         const palette = a?.palette || display.defaultPalette;
-        console.log("palette ", palette);
+        //console.log("palette ", palette);
         if (!Array.isArray(frame)) {
             throw new Error("compressFrame: frame must be an array");
         }
@@ -424,8 +424,15 @@ class DMDisplay {
                     ctx.fillText("Shift left/right: press 't' & 'y'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 220 + this.y);
                     ctx.fillText("Shift up/down: press 'u' & 'i'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 240 + this.y);
 
-                    ctx.fillText("Download BMP of current frame: press 'a'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 260 + this.y);
-                    ctx.fillText("Download video of current frame: press 'A'", this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 280 + this.y);
+                    ctx.fillText(`'[' or ']' to change pixel size: ${display.pixelSize}`, this.x + (a.paletteSize * a.paletteWidth) + 20, this.height * this.pixelSize + 280 + this.y);
+
+                    ctx.fillText(`Changing width or heigh will DESTROY CUR. ANIMATION!!`, this.x + (a.paletteSize * a.paletteWidth) + 400, this.height * this.pixelSize + 30 + this.y);
+                    ctx.fillText(`'h' or 'j' to change max width: ${display.width}`, this.x + (a.paletteSize * a.paletteWidth) + 400, this.height * this.pixelSize + 70 + this.y);
+                    ctx.fillText(`'k' or 'l' to change max height: ${display.height}`, this.x + (a.paletteSize * a.paletteWidth) + 400, this.height * this.pixelSize + 90 + this.y);
+
+                    ctx.fillText("Download BMP of current frame: press 'a'", this.x + (a.paletteSize * a.paletteWidth) + 400, this.height * this.pixelSize + 130 + this.y);
+                    ctx.fillText("Download video of current frame: press 'A'", this.x + (a.paletteSize * a.paletteWidth) + 400, this.height * this.pixelSize + 150 + this.y);
+                
                 }
             } else {
                 // console.log("printing button");
@@ -472,7 +479,7 @@ class DMDisplay {
     checkClick(e) {
         if (this.editMode && this.selectedAnimation > -1) {
             
-            // detect if click within drawn palette
+            // if click within palette
             let a = this.animationQueue[this.selectedAnimation];
             if (mouseX > this.x && mouseX < this.x + (a.paletteWidth * a.paletteSize)) {
                 if (mouseY > this.height * this.pixelSize + 10 + this.y && 
@@ -483,14 +490,19 @@ class DMDisplay {
                     let newY = Math.floor(oY / a.paletteSize) * a.paletteWidth;
                     let i = newY + newX;
                     if (i >= 0 && i < a.palette.length) {
-                        this.selectedColor = i;
+                        if (e.button === 2) {
+                            // right click select new color
+                            
+                        } else {
+                            // left click selects color
+                            this.selectedColor = i;
+                        }
                     }
                 }
             }
             
             // detect click on pixel
-            //ctx.fillRect(this.x, this.y, this.width * this.pixelSize, this.height * this.pixelSize);
-            if (mouseX >= this.x && mouseX <= this.x + (this.width + 1) * this.pixelSize) {
+            if (mouseX >= this.x && mouseX < this.x + (this.width) * this.pixelSize) {
                 if (mouseY >= this.y && mouseY < this.height * this.pixelSize + this.y) {
                     let oX = mouseX - this.x
                     let oY = mouseY - this.y;
@@ -519,8 +531,250 @@ class DMDisplay {
         }
     }
 
+    checkKey(e) {
+        if (e.key == "e") {
+            if (this.editMode == true) {
+                // Save current frame before leaving edit mode.
+                const a =
+                    this.animationQueue[
+                        this.selectedAnimation
+                    ];
+
+                if (a) {
+                    a.frames[a.currentFrame] =
+                        this.compressFrame(
+                            this.pixelData,
+                            a
+                        );
+                }
+
+                this.editMode = false;
+            } else {
+                this.editMode = true;
+            }
+
+            return;
+        }
+
+        // adjust width
+        if (e.key == "h") {
+            this.width --;
+            if (this.width < 2) {
+                this.width = 2;
+            }
+            this.reDraw();
+        }
+        if (e.key == "j") {
+            this.width ++;
+            this.reDraw();
+        }
+        
+        // adjust height
+        if (e.key == "k") {
+            this.height --;
+            if (this.height < 2) {
+                this.height = 2;
+            }
+            this.reDraw();
+        }
+        if (e.key == "l") {
+            this.height ++;
+            this.reDraw();
+        }
+
+        // adjust pixelSize
+        if (e.key == "[") {
+            this.pixelSize --;
+            if (this.pixelSize < 2) {
+                this.pixelSize = 2;
+            }
+            this.reDraw();
+        }
+        if (e.key == "]") {
+            this.pixelSize ++;
+            this.reDraw();
+        }
+
+
+        // dont allow other key commands outside of edit mode
+        if (!this.editMode) {
+            return;
+        }
+
+        const a =
+            this.animationQueue[
+                this.selectedAnimation
+            ];
+
+        if (!a) {
+            return;
+        }
+
+        // Save current edited frame before doing anything else.
+        a.frames[a.currentFrame] =
+            this.compressFrame(
+                this.pixelData,
+                a
+            );
+
+        if (e.key == "r") {
+            this.roundDots =
+                !this.roundDots;
+        }
+
+        // ---------------------------------------------------------
+        // NEW FRAME
+        // ---------------------------------------------------------
+
+        if (e.key == "n") {
+            this.clearPixelData(a);
+
+            const newFrame =
+                this.compressFrame(
+                    this.pixelData,
+                    a
+                );
+
+            a.frames.push(newFrame);
+            a.currentFrame =
+                a.frames.length - 1;
+        }
+
+        // ---------------------------------------------------------
+        // CLONE FRAME
+        // ---------------------------------------------------------
+
+        if (e.key == "c") {
+            const newFrame =
+                this.compressFrame(
+                    this.pixelData,
+                    a
+                );
+
+            a.frames.push(newFrame);
+            a.currentFrame =
+                a.frames.length - 1;
+        }
+
+        // ---------------------------------------------------------
+        // SHIFT
+        // ---------------------------------------------------------
+
+        if (e.key == "t") {
+            this.shiftFrameRows(0);
+        }
+
+        if (e.key == "y") {
+            this.shiftFrameRows(1);
+        }
+
+        if (e.key == "u") {
+            this.shiftFrameColumns(0);
+        }
+
+        if (e.key == "i") {
+            this.shiftFrameColumns(1);
+        }
+
+        // ---------------------------------------------------------
+        // DELETE
+        // ---------------------------------------------------------
+
+        if (e.key == "d") {
+            const userConfirmed =
+                confirm(
+                    "Are you sure you want to delete frame " +
+                    a.currentFrame +
+                    "?"
+                );
+
+            if (userConfirmed) {
+                if (a.frames.length > 1) {
+                    a.frames.splice(
+                        a.currentFrame,
+                        1
+                    );
+
+                    if (
+                        a.currentFrame >=
+                        a.frames.length
+                    ) {
+                        a.currentFrame =
+                            a.frames.length - 1;
+                    }
+
+                    this.pixelData =
+                        this.expandFrame(
+                            a.frames[a.currentFrame],
+                            a
+                        );
+                } else {
+                    // Keep one blank frame.
+                    this.clearPixelData(a);
+
+                    a.frames[0] =
+                        this.compressFrame(
+                            this.pixelData,
+                            a
+                        );
+
+                    a.currentFrame = 0;
+                }
+            }
+        }
+
+        // ---------------------------------------------------------
+        // PREVIOUS FRAME
+        // ---------------------------------------------------------
+
+        if (e.key == "o") {
+            if (a.currentFrame > 0) {
+                a.currentFrame--;
+
+                this.pixelData =
+                    this.expandFrame(
+                        a.frames[a.currentFrame],
+                        a
+                    );
+            }
+        }
+
+        // ---------------------------------------------------------
+        // NEXT FRAME
+        // ---------------------------------------------------------
+
+        if (e.key == "p") {
+            if (
+                a.currentFrame <
+                a.frames.length - 1
+            ) {
+                a.currentFrame++;
+
+                this.pixelData =
+                    this.expandFrame(
+                        a.frames[a.currentFrame],
+                        a
+                    );
+            }
+        }
+
+        if (e.key == "a") {
+            let saveWidth = bctx.width,
+            saveHeight = bctx.height;
+            bctx.width = this.width ;
+            bctx.height = this.height + 10;
+            captureFrame(this.width, this.height);
+            bctx.width = saveWidth;
+            bctx.height = saveHeight;
+        }
+        if (e.key == "A") {
+            //captureFrame(this.width, this.height);
+            exportAnimation(this.width, this.height, 10);
+        }
+    }
+
     shiftFrameRows(dir) {
-        let frame = display.pixelData;
+        let frame = this.pixelData;
         const width = this.width;
         const height = this.height;
 
@@ -546,7 +800,7 @@ class DMDisplay {
 
 
     shiftFrameColumns(dir) {
-        let frame = display.pixelData;
+        let frame = this.pixelData;
         const width = this.width;
         const height = this.height;
 
@@ -569,6 +823,27 @@ class DMDisplay {
             for (let i = 0; i < width; i++) {
                 frame[i] = temp[i];
             }
+        }
+    }
+
+    reDraw() {
+        bctx.fillStyle =  "#FFFFFF";
+        bctx.fillRect(0, 0, c.width, c.height);
+        let ani = this.animationQueue[this.selectedAnimation];
+        bctx.fillStyle = ani.bgColor;
+        bctx.fillRect(
+            this.x,
+            this.y,
+            this.width * this.pixelSize,
+            this.height * this.pixelSize
+        );
+        this.pixelData = [];
+        for (let i = 0; i < this.width * this.height; i++) {
+            this.pixelData.push(ani.bgColor);
+        }
+        this.prevPixelData = [];
+        for (let i = 0; i < this.width * this.height; i++) {
+            this.prevPixelData.push(ani.bgColor);
         }
     }
 }

@@ -1522,9 +1522,105 @@ function seekVideo(
     );
 }
 
+/* ============================================================
+ * IMAGE LOADER
+ * ============================================================
+ *
+ * Loads a static image and resolves when it is ready.
+ * Works with PNG, JPEG, WebP, GIF, SVG and other image formats
+ * supported by the browser.
+ * ============================================================
+ */
+
+function loadImageFile(file) {
+
+    return new Promise((resolve, reject) => {
+
+        const image =
+            new Image();
+
+        const objectUrl =
+            URL.createObjectURL(file);
+
+        let finished = false;
+
+        const cleanup = () => {
+
+            URL.revokeObjectURL(
+                objectUrl
+            );
+
+            image.onload = null;
+            image.onerror = null;
+        };
+
+        const fail = (error) => {
+
+            if (finished) {
+                return;
+            }
+
+            finished = true;
+
+            cleanup();
+            reject(error);
+        };
+
+        image.onload = () => {
+
+            if (finished) {
+                return;
+            }
+
+            finished = true;
+
+            cleanup();
+
+            if (
+                !image.naturalWidth ||
+                !image.naturalHeight
+            ) {
+
+                reject(
+                    new Error(
+                        "Unable to determine image dimensions"
+                    )
+                );
+
+                return;
+            }
+
+            resolve(image);
+        };
+
+        image.onerror = () => {
+
+            fail(
+                new Error(
+                    "Unable to load image. The browser may not support this image format."
+                )
+            );
+        };
+
+        image.src =
+            objectUrl;
+    });
+}
+
 
 /* ============================================================
- * MAIN VIDEO -> ANIMATION
+ * MEDIA -> ANIMATION
+ * ============================================================
+ *
+ * Accepts:
+ *
+ *   - Video files
+ *   - Static image files
+ *
+ * Images always produce exactly ONE animation frame.
+ *
+ * Videos produce frames according to FPS.
+ *
  * ============================================================
  */
 
@@ -1536,41 +1632,77 @@ async function videoToAnimation(
 
     const {
 
-        bgColor = options.bgColor || "#000000",
-        
-        maxWidth = options.maxWidth || 64,
+        bgColor =
+            options.bgColor ||
+            "#000000",
 
-        fps = options.fps || 10,
+        maxWidth =
+            options.maxWidth ||
+            64,
 
-        maxFrames = options.maxFrames || 5000,
+        fps =
+            options.fps ||
+            10,
 
-        colorMode = options.colorMode || "palette",
+        maxFrames =
+            options.maxFrames ||
+            5000,
 
-        amberColors = options.amberColors || DEFAULT_AMBER_COLORS,
+        colorMode =
+            options.colorMode ||
+            "palette",
 
-        amberThresholds = options.amberThresholds || DEFAULT_AMBER_THRESHOLDS,
+        amberColors =
+            options.amberColors ||
+            DEFAULT_AMBER_COLORS,
 
-        dithering = options.dithering || "floyd-steinberg",
+        amberThresholds =
+            options.amberThresholds ||
+            DEFAULT_AMBER_THRESHOLDS,
 
-        color = options.color || "#000000",
+        dithering =
+            options.dithering ||
+            "floyd-steinberg",
 
-        speed = options.speed || 5,
+        color =
+            options.color ||
+            "#000000",
 
-        offset = options.offset || 0,
+        speed =
+            options.speed ||
+            5,
 
-        aniDelay = options.aniDelay || 2,
+        offset =
+            options.offset ||
+            0,
 
-        repeats = options.repeats ?? true,
+        aniDelay =
+            options.aniDelay ||
+            2,
 
-        dir = options.dir || 0,
+        repeats =
+            options.repeats ??
+            true,
 
-        x = options.x || 0,
+        dir =
+            options.dir ||
+            0,
 
-        y = options.y || 0,
+        x =
+            options.x ||
+            0,
 
-        upscale = options.upscale || false,
+        y =
+            options.y ||
+            0,
 
-        onProgress = options.onProgress || null
+        upscale =
+            options.upscale ||
+            false,
+
+        onProgress =
+            options.onProgress ||
+            null
 
     } = options;
 
@@ -1581,20 +1713,23 @@ async function videoToAnimation(
      */
 
     if (!file) {
+
         throw new Error(
-            "No video file supplied"
+            "No media file supplied"
         );
     }
 
     if (
         !(file instanceof Blob)
     ) {
+
         throw new Error(
             "file must be a File or Blob"
         );
     }
 
     if (!display) {
+
         throw new Error(
             "display is required"
         );
@@ -1606,6 +1741,7 @@ async function videoToAnimation(
         ) ||
         display.defaultPalette.length === 0
     ) {
+
         throw new Error(
             "display.defaultPalette is empty or missing"
         );
@@ -1615,6 +1751,7 @@ async function videoToAnimation(
         !Number.isFinite(maxWidth) ||
         maxWidth < 1
     ) {
+
         throw new Error(
             "maxWidth must be greater than zero"
         );
@@ -1624,6 +1761,7 @@ async function videoToAnimation(
         !Number.isFinite(fps) ||
         fps <= 0
     ) {
+
         throw new Error(
             "fps must be greater than zero"
         );
@@ -1633,8 +1771,34 @@ async function videoToAnimation(
         !Number.isFinite(maxFrames) ||
         maxFrames < 1
     ) {
+
         throw new Error(
             "maxFrames must be greater than zero"
+        );
+    }
+
+
+    /* --------------------------------------------------------
+     * DETERMINE MEDIA TYPE
+     * --------------------------------------------------------
+     */
+
+    const isImage =
+        typeof file.type === "string" &&
+        file.type.startsWith("image/");
+
+    const isVideo =
+        typeof file.type === "string" &&
+        file.type.startsWith("video/");
+
+
+    if (
+        !isImage &&
+        !isVideo
+    ) {
+
+        throw new Error(
+            `Unsupported media type: ${file.type || "unknown"}`
         );
     }
 
@@ -1644,50 +1808,59 @@ async function videoToAnimation(
      * --------------------------------------------------------
      */
 
-let palette;
+    let palette;
 
-let paletteData = null;
-let amberQuantizer = null;
+    let paletteData =
+        null;
 
-if (colorMode === "palette") {
+    let amberQuantizer =
+        null;
 
-    palette =
-        display.defaultPalette.map(
-            normalizeHex
+
+    if (
+        colorMode === "palette"
+    ) {
+
+        palette =
+            display.defaultPalette.map(
+                normalizeHex
+            );
+
+        paletteData =
+            createPaletteLookup(
+                palette
+            );
+
+    } else if (
+        colorMode === "amber5"
+    ) {
+
+        display.selectedColor =
+            4;
+
+        palette =
+            amberColors.map(
+                normalizeHex
+            );
+
+        amberQuantizer =
+            createAmberQuantizer({
+                colors:
+                    palette,
+
+                amberThresholds:
+                    amberThresholds,
+
+                dithering:
+                    dithering
+            });
+
+    } else {
+
+        throw new Error(
+            `Unknown colorMode: ${colorMode}`
         );
-
-    paletteData =
-        createPaletteLookup(
-            palette
-        );
-
-} else if (colorMode === "amber5") {
-
-    display.selectedColor = 4;
-    palette =
-        amberColors.map(
-            normalizeHex
-        );
-        //console.log("palette ",palette)
-
-    amberQuantizer =
-        createAmberQuantizer({
-            colors:
-                palette,
-
-            amberThresholds:
-                amberThresholds,
-
-            dithering:
-                dithering
-        });
-
-} else {
-
-    throw new Error(
-        `Unknown colorMode: ${colorMode}`
-    );
-}
+    }
 
 
     /* --------------------------------------------------------
@@ -1700,8 +1873,241 @@ if (colorMode === "palette") {
 
 
     /* --------------------------------------------------------
-     * VIDEO
+     * IMAGE PATH
      * --------------------------------------------------------
+     */
+
+    if (isImage) {
+
+        const image =
+            await loadImageFile(
+                file
+            );
+
+        const sourceWidth =
+            image.naturalWidth;
+
+        const sourceHeight =
+            image.naturalHeight;
+
+
+        /* ----------------------------------------------------
+         * DIMENSIONS
+         * ----------------------------------------------------
+         */
+
+        let width;
+
+        if (upscale) {
+
+            width =
+                Math.round(
+                    maxWidth
+                );
+
+        } else {
+
+            width =
+                Math.min(
+                    sourceWidth,
+                    Math.round(maxWidth)
+                );
+        }
+
+        const height =
+            Math.max(
+                1,
+                Math.round(
+                    sourceHeight *
+                    (
+                        width /
+                        sourceWidth
+                    )
+                )
+            );
+
+
+        /* ----------------------------------------------------
+         * CANVAS
+         * ----------------------------------------------------
+         */
+
+        const canvas =
+            document.createElement(
+                "canvas"
+            );
+
+        canvas.width =
+            width;
+
+        canvas.height =
+            height;
+
+        const ctx =
+            canvas.getContext(
+                "2d",
+                {
+                    willReadFrequently: true
+                }
+            );
+
+        if (!ctx) {
+
+            throw new Error(
+                "Unable to create canvas context"
+            );
+        }
+
+        ctx.imageSmoothingEnabled =
+            false;
+
+
+        /* ----------------------------------------------------
+         * DRAW IMAGE
+         * ----------------------------------------------------
+         */
+
+        ctx.clearRect(
+            0,
+            0,
+            width,
+            height
+        );
+
+        ctx.drawImage(
+            image,
+            0,
+            0,
+            width,
+            height
+        );
+
+
+        /* ----------------------------------------------------
+         * READ PIXELS
+         * ----------------------------------------------------
+         */
+
+        const imageData =
+            ctx.getImageData(
+                0,
+                0,
+                width,
+                height
+            );
+
+
+        /* ----------------------------------------------------
+         * ENCODE SINGLE FRAME
+         * ----------------------------------------------------
+         */
+
+        let encodedFrame;
+
+        if (
+            colorMode === "amber5"
+        ) {
+
+            encodedFrame =
+                encodeAmberFrame(
+                    imageData.data,
+                    width,
+                    height,
+                    amberQuantizer,
+                    palette
+                );
+
+        } else {
+
+            encodedFrame =
+                encodeFrameFast(
+                    imageData.data,
+                    paletteData.palette,
+                    paletteData,
+                    colorCache
+                );
+        }
+
+
+        /* ----------------------------------------------------
+         * PROGRESS
+         * ----------------------------------------------------
+         */
+
+        if (
+            typeof onProgress ===
+            "function"
+        ) {
+
+            onProgress({
+                frame: 1,
+                totalFrames: 1,
+                progress: 1
+            });
+        }
+
+
+        /* ----------------------------------------------------
+         * RETURN SINGLE-FRAME ANIMATION
+         * ----------------------------------------------------
+         */
+
+        return {
+
+            str: "",
+
+            x,
+            y,
+
+            width,
+            height,
+
+            type:
+                "animation",
+
+            color:
+                normalizeHex(color),
+
+            colorMode,
+
+            speed,
+
+            offset,
+
+            aniDelay,
+
+            bgColor,
+
+            repeats,
+
+            dir,
+
+            currentFrame:
+                0,
+
+            /*
+             * IMPORTANT:
+             *
+             * An image ALWAYS has exactly one frame.
+             */
+            frames: [
+                encodedFrame
+            ],
+
+            palette,
+
+            paletteWidth:
+                16,
+
+            paletteSize:
+                16
+        };
+    }
+
+
+    /* ========================================================
+     * VIDEO PATH
+     * ========================================================
      */
 
     const video =
@@ -1709,16 +2115,20 @@ if (colorMode === "palette") {
             "video"
         );
 
-    video.muted = true;
-    video.playsInline = true;
-    video.preload = "auto";
+    video.muted =
+        true;
 
-    /*
-     * blob: URL works for MP4, WebM, MOV and other formats
-     * supported by the browser.
-     */
+    video.playsInline =
+        true;
+
+    video.preload =
+        "auto";
+
+
     const objectUrl =
-        URL.createObjectURL(file);
+        URL.createObjectURL(
+            file
+        );
 
     video.src =
         objectUrl;
@@ -1868,7 +2278,7 @@ if (colorMode === "palette") {
 
 
         /* ----------------------------------------------------
-         * EXTRACT
+         * EXTRACT VIDEO FRAMES
          * ----------------------------------------------------
          */
 
@@ -1944,14 +2354,6 @@ if (colorMode === "palette") {
                 colorMode === "amber5"
             ) {
 
-                /*
-                 * CORRECT ARGUMENT ORDER:
-                 *
-                 *   data
-                 *   width
-                 *   height
-                 *   amberQuantizer
-                 */
                 encodedFrame =
                     encodeAmberFrame(
                         image.data,
@@ -1989,6 +2391,7 @@ if (colorMode === "palette") {
             ) {
 
                 onProgress({
+
                     frame:
                         frameIndex + 1,
 
@@ -2136,7 +2539,7 @@ if (!videoInput) {
                         {
 
                             maxWidth:
-                                64,
+                                display.width,
 
                             fps:
                                 10,
